@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Submission = require('../models/Submission');
 const Assignment = require('../models/Assignment');
 const Notification = require('../models/Notification');
@@ -30,25 +31,40 @@ exports.submitTask = async (req, res) => {
        fileUrl, 
        notes 
     });
-    res.status(201).json(newSub);
+    
+    // Yaratilgan submissionni populate qilib qaytarish (frontendda darhol ko'rinishi uchun)
+    const populatedSub = await Submission.findById(newSub._id)
+      .populate('studentId', 'name email')
+      .populate('assignmentId', 'title deadline groupId');
+
+    res.status(201).json(populatedSub);
   } catch (error) {
     res.status(500).json({ message: 'Server xatoligi yuz berdi' });
   }
 };
 
 exports.getTeacherSubmissions = async (req, res) => {
-  const teacherId = req.params.teacherId;
   try {
-    const teacherAssignments = await Assignment.find({ teacherId });
+    const teacherId = req.params.teacherId;
+    
+    // O'qituvchiga tegishli barcha vazifalarni topamiz
+    const teacherAssignments = await Assignment.find({ 
+      teacherId: new mongoose.Types.ObjectId(teacherId) 
+    });
+    
     const assignmentIds = teacherAssignments.map(a => a._id);
 
-    const submissions = await Submission.find({ assignmentId: { $in: assignmentIds } })
+    // Shu vazifalarga tegishli barcha yechimlarni topamiz
+    const submissions = await Submission.find({ 
+      assignmentId: { $in: assignmentIds } 
+    })
       .populate('studentId', 'name email')
-      .populate('assignmentId', 'title deadline')
+      .populate('assignmentId', 'title deadline groupId')
       .sort({ createdAt: -1 });
 
     res.json(submissions);
   } catch(err) {
+    console.error("getTeacherSubmissions error:", err);
     res.status(500).json({ message: 'Server xatoligi' });
   }
 };
