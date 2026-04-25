@@ -14,7 +14,7 @@ export default function StudentChat() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    socketRef.current = io('http://localhost:5000');
+    socketRef.current = io('https://lms-platform-efpp.onrender.com');
     setConnected(true);
     
     getStudentTeacher(user._id).then(res => {

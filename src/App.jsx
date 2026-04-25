@@ -29,7 +29,7 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      const socket = io('http://localhost:5000');
+      const socket = io('https://lms-platform-efpp.onrender.com');
       
       socket.emit('join', user._id);
       
