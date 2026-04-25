@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getStudentTeacher, getMessages } from '../services/chatApi';
 import { io } from 'socket.io-client';
@@ -10,11 +10,12 @@ export default function StudentChat() {
   const [messages, setMessages] = useState([]);
   const [inputStr, setInputStr] = useState("");
   const endRef = useRef(null);
-  const [socket, setSocket] = useState(null);
+  const socketRef = useRef(null);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const s = io('http://localhost:5000');
-    setSocket(s);
+    socketRef.current = io('http://localhost:5000');
+    setConnected(true);
     
     getStudentTeacher(user._id).then(res => {
       setTeacher(res.data);
@@ -23,10 +24,14 @@ export default function StudentChat() {
       }
     });
 
-    return () => s.disconnect();
+    return () => {
+      socketRef.current?.disconnect();
+      setConnected(false);
+    };
   }, [user._id]);
 
   useEffect(() => {
+    const socket = socketRef.current;
     if (socket) {
       socket.on('receive_message', (msg) => {
         if ((msg.senderId === user._id && msg.receiverId === teacher?._id) ||
@@ -35,7 +40,10 @@ export default function StudentChat() {
         }
       });
     }
-  }, [socket, teacher, user._id]);
+    return () => {
+      socket?.off('receive_message');
+    };
+  }, [connected, teacher, user._id]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -43,6 +51,7 @@ export default function StudentChat() {
 
   const handleSend = (e) => {
     e.preventDefault();
+    const socket = socketRef.current;
     if (!inputStr.trim() || !teacher || !socket) return;
     
     const msgData = {

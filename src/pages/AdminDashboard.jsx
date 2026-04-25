@@ -1,300 +1,518 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { getAllUsers, deleteUser, updateUser } from '../services/userApi';
-import { getGroups, createGroup } from '../services/groupApi';
+import { getGroups, createGroup, deleteGroup, getGroupStudents } from '../services/groupApi';
+import {
+  Users, GraduationCap, Shield, FolderOpen, Pencil, Trash2, X,
+  Eye, ChevronRight, UserCheck, UserX, Calendar, Mail, Phone, ArrowRightLeft, Settings
+} from 'lucide-react';
+import { removeStudentFromGroup, moveStudentToGroup, updateGroup } from '../services/groupApi';
+import toast from 'react-hot-toast';
 
-export default function AdminDashboard() {
-  const { user } = useAuth();
-  
-  // Users state
-  const [usersInfo, setUsersInfo] = useState([]);
+const STAT_CARDS = [
+  { key: 'students',  label: "O'quvchilar",   icon: GraduationCap, color: 'from-violet-500 to-indigo-600' },
+  { key: 'teachers',  label: "O'qituvchilar",  icon: Users,          color: 'from-indigo-500 to-blue-600'  },
+  { key: 'admins',    label: 'Adminlar',        icon: Shield,         color: 'from-rose-500 to-pink-600'    },
+  { key: 'groups',    label: 'Guruhlar',        icon: FolderOpen,     color: 'from-emerald-500 to-teal-600' },
+];
+
+const ROLE_BADGE = {
+  teacher: 'bg-violet-50 text-violet-700',
+  admin:   'bg-rose-50 text-rose-700',
+  student: 'bg-emerald-50 text-emerald-700',
+};
+
+// ─── Small helpers ──────────────────────────────────────────────────────────
+const Avatar = ({ name, className = '' }) => (
+  <div className={`rounded-xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center font-black text-violet-600 shrink-0 ${className}`}>
+    {name?.charAt(0).toUpperCase()}
+  </div>
+);
+
+const fmt = (d) => d ? new Date(d).toLocaleDateString('uz-UZ') : '—';
+
+// ─── Group Students Modal ────────────────────────────────────────────────────
+function GroupStudentsModal({ groupId, onClose, onRefresh, allGroups }) {
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Groups state
-  const [groups, setGroups] = useState([]);
-  const [groupNumber, setGroupNumber] = useState('');
-  const [assignedTeacher, setAssignedTeacher] = useState('');
-  const [groupLoading, setGroupLoading] = useState(false);
-
-  const [stats, setStats] = useState({
-     students: 0,
-     teachers: 0,
-     admins: 0
-  });
-
-  const [editingUser, setEditingUser] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', email: '', role: '' });
-  const [editLoading, setEditLoading] = useState(false);
+  const [movingStudentId, setMovingStudentId] = useState(null);
+  const [targetGroupId, setTargetGroupId] = useState('');
 
   useEffect(() => {
-    fetchUsers();
-    fetchGroupsData();
-  }, []);
+    fetchData();
+  }, [groupId]);
 
-  const fetchUsers = async () => {
-      try {
-        const data = await getAllUsers();
-        setUsersInfo(data);
-        
-        const studentCount = data.filter(u => u.role === 'student').length;
-        const teacherCount = data.filter(u => u.role === 'teacher').length;
-        const adminCount = data.filter(u => u.role === 'admin').length;
-
-        setStats({ students: studentCount, teachers: teacherCount, admins: adminCount });
-      } catch (err) {
-        console.error("Foydalanuvchilarni olishda xatolik", err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchData = () => {
+    setLoading(true);
+    getGroupStudents(groupId)
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
   };
 
-  const fetchGroupsData = async () => {
-     try {
-       const data = await getGroups();
-       setGroups(data);
-     } catch (err) {
-       console.error("Guruhlarni olishda xatolik", err);
-     }
-  };
-
-  const handleCreateGroup = async (e) => {
-     e.preventDefault();
-     setGroupLoading(true);
-     try {
-       // Guruh formatini "1-Guruh" shaklida saqlaymiz
-       await createGroup({ name: `${groupNumber}-Guruh`, teacherId: assignedTeacher });
-       alert("Guruh muvaffaqiyatli yaratildi!");
-       setGroupNumber('');
-       setAssignedTeacher('');
-       fetchGroupsData();
-     } catch(err) {
-       alert(err.response?.data?.message || "Guruh yaratishda xatolik");
-     } finally {
-       setGroupLoading(false);
-     }
-  };
-
-  const handleDeleteUser = async (userId, userName) => {
-    const confirmation = window.confirm(`Diqqat! ${userName} rostdan ham o'chirilsinmi? Uning barcha ma'lumotlari, vazifalari va yechimlari tiklanmaydigan bo'lib ketadi.`);
-    if(!confirmation) return;
-
+  const handleRemove = async (studentId, studentName) => {
+    if (!window.confirm(`${studentName} guruhdan chiqarilsinmi?`)) return;
     try {
-      await deleteUser(userId);
-      alert("Muvaffaqiyatli o'chirildi.");
-      fetchUsers();
+      await removeStudentFromGroup(studentId);
+      toast.success("O'quvchi guruhdan chiqarildi");
+      fetchData();
+      if (onRefresh) onRefresh();
     } catch (err) {
-      alert("O'chirishda xatolik yuz berdi: " + (err.response?.data?.message || err.message));
+      toast.error(err.response?.data?.message || "Xatolik yuz berdi");
     }
   };
 
-  const handleOpenEdit = (userToEdit) => {
-    setEditingUser(userToEdit);
-    setEditForm({
-       name: userToEdit.name,
-       email: userToEdit.email,
-       role: userToEdit.role
-    });
+  const handleMove = async (e) => {
+    e.preventDefault();
+    if (!targetGroupId) return;
+    try {
+      await moveStudentToGroup(movingStudentId, targetGroupId);
+      toast.success("O'quvchi boshqa guruhga o'tkazildi");
+      setMovingStudentId(null);
+      setTargetGroupId('');
+      fetchData();
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Xatolik yuz berdi");
+    }
   };
 
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <motion.div
+        initial={{ scale: 0.94, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.94, opacity: 0 }}
+        className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-black text-slate-800">
+              {loading ? 'Yuklanmoqda...' : data?.group?.name || 'Guruh'}
+            </h2>
+            {data && (
+              <p className="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1.5">
+                <UserCheck className="w-3.5 h-3.5" />
+                O'qituvchi: <span className="text-violet-600 font-bold">{data.group?.teacherId?.name || '—'}</span>
+              </p>
+            )}
+          </div>
+          <button onClick={onClose} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors mt-0.5">
+            <X className="w-4 h-4 text-slate-400" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : !data ? (
+            <p className="text-center text-slate-400 py-10 text-sm">Ma'lumot yuklanmadi</p>
+          ) : data.students.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-3">
+              <UserX className="w-10 h-10 text-slate-200" />
+              <p className="text-sm font-medium">Bu guruhda hali o'quvchi yo'q</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {data.students.map((s, i) => (
+                <motion.div
+                  key={s._id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-violet-200 transition-colors group/item"
+                >
+                  <Avatar name={s.name} className="w-10 h-10 text-sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-700 truncate">{s.name}</p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <Mail className="w-3 h-3" />{s.email}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => setMovingStudentId(s._id)}
+                      title="Guruhni almashtirish"
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-100"
+                    >
+                      <ArrowRightLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleRemove(s._id, s.name)}
+                      title="Guruhdan chiqarish"
+                      className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-100"
+                    >
+                      <UserX className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Move Student UI */}
+        <AnimatePresence>
+          {movingStudentId && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="px-6 py-4 border-t border-indigo-50 bg-indigo-50/30 overflow-hidden"
+            >
+              <form onSubmit={handleMove} className="flex gap-2">
+                <select
+                  required
+                  value={targetGroupId}
+                  onChange={e => setTargetGroupId(e.target.value)}
+                  className="flex-1 bg-white border border-indigo-100 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none"
+                >
+                  <option value="">Yangi guruhni tanlang...</option>
+                  {allGroups.filter(g => g._id !== groupId).map(g => (
+                    <option key={g._id} value={g._id}>{g.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-indigo-100 hover:bg-indigo-700 transition-colors"
+                >
+                  Ko'chirish
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMovingStudentId(null)}
+                  className="bg-white text-slate-400 p-2 rounded-xl hover:bg-slate-50 transition-colors border border-indigo-50"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Footer */}
+        {data && (
+          <div className="px-6 py-4 border-t border-slate-50 bg-slate-50/60">
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+              Jami: <span className="text-violet-600">{data.students.length}</span> o'quvchi
+            </p>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
+export default function AdminDashboard() {
+  const { user } = useAuth();
+
+  const [usersInfo, setUsersInfo]       = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [groups, setGroups]             = useState([]);
+  const [groupNumber, setGroupNumber]   = useState('');
+  const [assignedTeacher, setAssignedTeacher] = useState('');
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [stats, setStats]               = useState({ students: 0, teachers: 0, admins: 0, groups: 0 });
+
+  const [editingUser, setEditingUser]   = useState(null);
+  const [editForm, setEditForm]         = useState({ name: '', email: '', role: '' });
+  const [editLoading, setEditLoading]   = useState(false);
+
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [groupEditForm, setGroupEditForm] = useState({ name: '', teacherId: '' });
+  const [groupEditLoading, setGroupEditLoading] = useState(false);
+
+  const [viewGroupId, setViewGroupId] = useState(null); // students modal
+
+  useEffect(() => { fetchUsers(); fetchGroupsData(); }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const data = await getAllUsers();
+      setUsersInfo(data);
+      setStats(s => ({
+        ...s,
+        students: data.filter(u => u.role === 'student').length,
+        teachers: data.filter(u => u.role === 'teacher').length,
+        admins:   data.filter(u => u.role === 'admin').length,
+      }));
+    } catch {} finally { setLoading(false); }
+  };
+
+  const fetchGroupsData = async () => {
+    try {
+      const data = await getGroups();
+      setGroups(data);
+      setStats(s => ({ ...s, groups: data.length }));
+    } catch {}
+  };
+
+  const handleCreateGroup = async (e) => {
+    e.preventDefault();
+    setGroupLoading(true);
+    try {
+      await createGroup({ name: `${groupNumber}-Guruh`, teacherId: assignedTeacher });
+      setGroupNumber(''); setAssignedTeacher('');
+      fetchGroupsData();
+      toast.success("Guruh yaratildi");
+    } catch (err) { toast.error(err.response?.data?.message || 'Xatolik'); }
+    finally { setGroupLoading(false); }
+  };
+
+  const handleDeleteGroup = async (g) => {
+    if (!window.confirm(`"${g.name}" guruhini o'chirmoqchimisiz?\nGuruhdagi o'quvchilar guruhsiz qoladi.`)) return;
+    try {
+      await deleteGroup(g._id);
+      fetchGroupsData();
+      fetchUsers();
+      toast.success("Guruh o'chirildi");
+    } catch (err) { toast.error(err.response?.data?.message || 'Xatolik'); }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (!window.confirm(`"${userName}" o'chirilsinmi? Barcha ma'lumotlari tiklanmaydi.`)) return;
+    try { await deleteUser(userId); fetchUsers(); toast.success("Foydalanuvchi o'chirildi"); }
+    catch (err) { toast.error(err.response?.data?.message || 'Xatolik'); }
+  };
+
+  const handleOpenEdit = (u) => { setEditingUser(u); setEditForm({ name: u.name, email: u.email, role: u.role }); };
+
   const handleUpdateSubmit = async (e) => {
-     e.preventDefault();
-     setEditLoading(true);
-     try {
-       await updateUser(editingUser._id, editForm);
-       alert("Muvaffaqiyatli tahrirlandi!");
-       setEditingUser(null);
-       fetchUsers();
-     } catch (err) {
-       alert("Tahrirlashda xatolik: " + (err.response?.data?.message || err.message));
-     } finally {
-       setEditLoading(false);
-     }
+    e.preventDefault();
+    setEditLoading(true);
+    try { await updateUser(editingUser._id, editForm); setEditingUser(null); fetchUsers(); toast.success("Ma'lumotlar yangilandi"); }
+    catch (err) { toast.error(err.response?.data?.message || 'Xatolik'); }
+    finally { setEditLoading(false); }
+  };
+
+  const handleOpenGroupEdit = (g) => {
+    setEditingGroup(g);
+    setGroupEditForm({ name: g.name, teacherId: g.teacherId?._id || '' });
+  };
+
+  const handleGroupUpdateSubmit = async (e) => {
+    e.preventDefault();
+    setGroupEditLoading(true);
+    try {
+      await updateGroup(editingGroup._id, groupEditForm);
+      setEditingGroup(null);
+      fetchGroupsData();
+      toast.success("Guruh yangilandi");
+    } catch (err) { toast.error(err.response?.data?.message || 'Xatolik'); }
+    finally { setGroupEditLoading(false); }
   };
 
   const teachersList = usersInfo.filter(u => u.role === 'teacher');
 
   return (
-    <div className="w-full relative pb-10">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">Admin Paneli</h1>
-          <p className="text-slate-500 mt-1">Platformaning to'liq boshqaruvi va foydalanuvchilar nazorati.</p>
-        </div>
+    <div className="w-full pb-10">
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-black text-slate-800">Admin Paneli</h1>
+        <p className="text-sm text-slate-400 mt-1">Platformaning to'liq boshqaruvi va nazorati.</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-50 rounded-full group-hover:scale-150 transition-transform duration-500 z-0"></div>
-          <div className="relative z-10">
-            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Jami O'quvchilar</p>
-            <p className="text-3xl font-black text-slate-800">{loading ? '...' : stats.students} ta</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-purple-50 rounded-full group-hover:scale-150 transition-transform duration-500 z-0"></div>
-          <div className="relative z-10">
-            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">O'qituvchilar</p>
-            <p className="text-3xl font-black text-slate-800">{loading ? '...' : stats.teachers} ta</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-red-50 rounded-full group-hover:scale-150 transition-transform duration-500 z-0"></div>
-          <div className="relative z-10">
-            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Adminlar</p>
-            <p className="text-3xl font-black text-slate-800">{loading ? '...' : stats.admins} ta</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-green-50 rounded-full group-hover:scale-150 transition-transform duration-500 z-0"></div>
-          <div className="relative z-10">
-            <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Guruhlar soni</p>
-            <p className="text-3xl font-black text-slate-800">{groups.length} ta</p>
-          </div>
-        </div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {STAT_CARDS.map((card, idx) => {
+          const Icon = card.icon;
+          const val = card.key === 'groups'
+            ? groups.length
+            : stats[card.key];
+          return (
+            <motion.div
+              key={card.key}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.06 }}
+              className="bg-white rounded-2xl border border-slate-100 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${card.color} flex items-center justify-center shrink-0 shadow-lg`}>
+                <Icon className="w-5 h-5 text-white" strokeWidth={2.5} />
+              </div>
+              <div>
+                <div className="text-2xl font-black text-slate-800">{loading ? '...' : val}</div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{card.label}</div>
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-        {/* Gruppa Yaratish (Left Column) */}
-        <div className="bg-indigo-50/50 rounded-2xl border border-indigo-100 p-6 lg:col-span-1 h-max">
-           <h2 className="text-xl font-bold text-indigo-900 mb-6">Yangi Guruh Qo'shish</h2>
-           <form onSubmit={handleCreateGroup} className="space-y-4">
-              <div>
-                 <label className="block text-slate-700 text-sm font-bold mb-2">Guruh Raqami</label>
-                 <div className="flex items-center">
-                    <input 
-                      type="number" min="1" required
-                      className="w-full border-slate-200 rounded-l-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:outline-none"
-                      placeholder="1, 2, 3..."
-                      value={groupNumber}
-                      onChange={(e) => setGroupNumber(e.target.value)}
-                    />
-                    <span className="bg-indigo-100 text-indigo-800 font-bold px-4 py-3 rounded-r-xl border border-indigo-200 border-l-0">-Guruh</span>
-                 </div>
+      {/* Group Management */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+        {/* Create Group Form */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+          <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-5 flex items-center gap-2">
+            <span className="w-1 h-4 bg-violet-600 rounded-full inline-block" />
+            Yangi Guruh
+          </h2>
+          <form onSubmit={handleCreateGroup} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Guruh raqami</label>
+              <div className="flex">
+                <input
+                  type="number" min="1" required value={groupNumber}
+                  onChange={e => setGroupNumber(e.target.value)}
+                  placeholder="1, 2, 3..."
+                  className="flex-grow bg-slate-50 border border-slate-100 rounded-l-xl px-4 py-2.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-400"
+                />
+                <span className="bg-violet-50 text-violet-700 font-black text-sm px-3 flex items-center rounded-r-xl border border-slate-100 border-l-0">-Guruh</span>
               </div>
-              
-              <div>
-                 <label className="block text-slate-700 text-sm font-bold mb-2">Biriktirilgan Ustoz</label>
-                 <select 
-                   required
-                   className="w-full border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:outline-none bg-white"
-                   value={assignedTeacher}
-                   onChange={(e) => setAssignedTeacher(e.target.value)}
-                 >
-                    <option value="" disabled>-- Ustozni tanlang --</option>
-                    {teachersList.map(t => (
-                       <option key={t._id} value={t._id}>{t.name}</option>
-                    ))}
-                 </select>
-                 {teachersList.length === 0 && <p className="text-xs text-red-500 mt-1">Tizimda o'qituvchi yo'q! Oldin o'qituvchi qo'shing.</p>}
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={groupLoading || teachersList.length === 0}
-                className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3 px-8 rounded-xl transition disabled:opacity-50 mt-2"
-              >
-                {groupLoading ? 'Yaratilmoqda...' : 'Guruhni Yaratish'}
-              </button>
-           </form>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">O'qituvchi</label>
+              <select required value={assignedTeacher} onChange={e => setAssignedTeacher(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-400">
+                <option value="" disabled>— Tanlang —</option>
+                {teachersList.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+              </select>
+              {teachersList.length === 0 && <p className="text-[10px] text-rose-500 mt-1.5 font-bold">Tizimda o'qituvchi yo'q!</p>}
+            </div>
+            <button type="submit" disabled={groupLoading || !teachersList.length}
+              className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black py-2.5 rounded-xl shadow-lg shadow-violet-200 transition-all disabled:opacity-50 text-sm">
+              {groupLoading ? 'Yaratilmoqda...' : 'Guruh yaratish'}
+            </button>
+          </form>
         </div>
 
-        {/* Guruhlar Ro'yxati (Right Column) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 lg:col-span-2">
-           <h2 className="text-xl font-bold text-slate-800 mb-6">Mavjud Guruhlar</h2>
-           {groups.length === 0 ? (
-             <p className="text-slate-500 text-center py-8">Hali hech qanday guruh yaratilmagan.</p>
-           ) : (
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {groups.map(g => (
-                   <div key={g._id} className="border border-slate-100 rounded-xl p-4 flex items-center justify-between hover:border-indigo-200 transition bg-slate-50">
-                      <div>
-                        <h3 className="font-extrabold text-indigo-900 text-lg mb-1">{g.name}</h3>
-                        <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                          Ustoz: {g.teacherId?.name || "O'chirilgan"}
-                        </p>
-                      </div>
-                      <div className="h-10 w-10 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold">
-                         {g.name.split('-')[0]}
-                      </div>
-                   </div>
-                ))}
-             </div>
-           )}
+        {/* Groups List */}
+        <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+          <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-5 flex items-center gap-2">
+            <span className="w-1 h-4 bg-emerald-500 rounded-full inline-block" />
+            Mavjud Guruhlar ({groups.length})
+          </h2>
+          {groups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <FolderOpen className="w-10 h-10 text-slate-200 mb-2" />
+              <p className="text-sm font-medium">Hali guruhlar yo'q</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {groups.map(g => (
+                <motion.div
+                  key={g._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="group flex items-center gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-violet-200 transition-all relative overflow-hidden"
+                >
+                  <div className="absolute inset-x-0 bottom-0 h-0.5 bg-violet-600 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></div>
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center font-black text-violet-600 text-sm shrink-0">
+                    {g.name.split('-')[0]}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-black text-slate-700 text-sm truncate">{g.name}</h3>
+                    <p className="text-[10px] text-slate-400 font-medium truncate">
+                      {g.teacherId?.name || "O'qituvchi yo'q"}
+                    </p>
+                  </div>
+                  {/* action buttons - visible on hover */}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* View students */}
+                    {/* View students */}
+                    <button
+                      onClick={() => setViewGroupId(g._id)}
+                      title="O'quvchilarni ko'rish"
+                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-100"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    {/* Edit group */}
+                    <button
+                      onClick={() => handleOpenGroupEdit(g)}
+                      title="Guruhni tahrirlash"
+                      className="p-2 text-slate-400 hover:text-violet-600 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-100"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                    {/* Delete group */}
+                    <button
+                      onClick={() => handleDeleteGroup(g)}
+                      title="Guruhni o'chirish"
+                      className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white rounded-xl transition-all shadow-sm border border-transparent hover:border-slate-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Chevron hint */}
+                  <ChevronRight className="w-4 h-4 text-slate-200 group-hover:text-violet-400 transition-colors shrink-0 hidden sm:block" />
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-10">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-slate-800">Foydalanuvchilar ro'yxati (Baza)</h2>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+          <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+            <span className="w-1 h-4 bg-indigo-500 rounded-full inline-block" />
+            Foydalanuvchilar ({usersInfo.length})
+          </h2>
         </div>
-        
         {loading ? (
-           <div className="p-10 text-center text-slate-500">Ma'lumotlar yuklanmoqda...</div>
+          <div className="p-10 text-center">
+            <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider font-bold">
-                  <th className="p-5">Foydalanuvchi</th>
-                  <th className="p-5">Rol (Role)</th>
-                  <th className="p-5">Ro'yxatdan o'tgan</th>
-                  <th className="p-5">Oxirgi marta kirdi (Login)</th>
-                  <th className="p-5 text-right">Harakatlar</th>
+                <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <th className="px-6 py-3">Foydalanuvchi</th>
+                  <th className="px-6 py-3">Rol</th>
+                  <th className="px-6 py-3 hidden md:table-cell">Ro'yxatdan o'tgan</th>
+                  <th className="px-6 py-3 hidden lg:table-cell">Oxirgi kirish</th>
+                  <th className="px-6 py-3 text-right">Amallar</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {usersInfo.map((u) => (
-                  <tr key={u._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-5">
+              <tbody className="divide-y divide-slate-50">
+                {usersInfo.map(u => (
+                  <tr key={u._id} className="hover:bg-slate-50/60 transition-colors group">
+                    <td className="px-6 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold uppercase">
-                          {u.name.charAt(0)}
-                        </div>
+                        <Avatar name={u.name} className="w-8 h-8 text-sm" />
                         <div>
-                          <div className="font-bold text-slate-800">{u.name}</div>
-                          <div className="text-slate-500 text-xs">{u.email}</div>
+                          <div className="text-sm font-bold text-slate-700">{u.name}</div>
+                          <div className="text-[10px] text-slate-400 font-medium">{u.email}</div>
                         </div>
                       </div>
                     </td>
-                    
-                    <td className="p-5">
-                      <span className={`px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider
-                        ${u.role === 'teacher' ? 'bg-purple-100 text-purple-700' 
-                          : u.role === 'admin' ? 'bg-blue-100 text-blue-700' 
-                          : 'bg-slate-100 text-slate-700'}
-                      `}>
+                    <td className="px-6 py-3">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${ROLE_BADGE[u.role] || 'bg-slate-100 text-slate-600'}`}>
                         {u.role}
                       </span>
                     </td>
-                    
-                    <td className="p-5 font-medium text-slate-600">
-                      {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Noma\'lum'}
+                    <td className="px-6 py-3 hidden md:table-cell text-xs text-slate-500 font-medium">
+                      {fmt(u.createdAt)}
                     </td>
-
-                    <td className="p-5 font-medium text-slate-600">
-                      {u.lastLogin ? new Date(u.lastLogin).toLocaleString() : 'Hali kirmagan'}
+                    <td className="px-6 py-3 hidden lg:table-cell text-xs text-slate-400 font-medium">
+                      {u.lastLogin ? new Date(u.lastLogin).toLocaleString('uz-UZ') : 'Hali kirmagan'}
                     </td>
-                    
-                    <td className="p-5 text-right space-x-2">
-                       <button onClick={() => handleOpenEdit(u)} className="p-2 text-slate-400 hover:text-primary transition-colors bg-slate-50 hover:bg-indigo-50 rounded-lg">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                       </button>
-                      
-                       {u._id !== user._id && (
-                        <button 
-                           onClick={() => handleDeleteUser(u._id, u.name)}
-                           className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 hover:bg-red-50 rounded-lg"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    <td className="px-6 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={() => handleOpenEdit(u)}
+                          className="p-2 text-slate-300 hover:text-violet-600 hover:bg-violet-50 rounded-xl transition-all">
+                          <Pencil className="w-4 h-4" />
                         </button>
-                      )}
-                      
-                      {u._id === user._id && (
-                        <span className="text-xs text-slate-400 font-bold px-2">Men</span>
-                      )}
+                        {u._id !== user._id ? (
+                          <button onClick={() => handleDeleteUser(u._id, u.name)}
+                            className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-black text-slate-300 px-2">Men</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -304,60 +522,100 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Edit User Modal */}
-      {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-sm shadow-2xl relative">
-             <button onClick={() => setEditingUser(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 bg-slate-100 rounded-full p-1">
-               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-             </button>
-             
-             <h2 className="text-2xl font-extrabold text-slate-800 mb-6">Tahrirlash</h2>
-             
-             <form onSubmit={handleUpdateSubmit} className="space-y-4">
+      {/* ── Modals ── */}
+      <AnimatePresence>
+        {/* Edit User Modal */}
+        {editingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <motion.div
+              key="edit-modal"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative"
+            >
+              <button onClick={() => setEditingUser(null)} className="absolute top-5 right-5 p-2 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors">
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+              <h2 className="text-xl font-black text-slate-800 mb-6">Tahrirlash</h2>
+              <form onSubmit={handleUpdateSubmit} className="space-y-4">
+                {[
+                  { label: 'Ism Familiya', field: 'name', type: 'text' },
+                  { label: 'Email', field: 'email', type: 'email' },
+                ].map(({ label, field, type }) => (
+                  <div key={field}>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{label}</label>
+                    <input type={type} required value={editForm[field]}
+                      onChange={e => setEditForm({ ...editForm, [field]: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-400" />
+                  </div>
+                ))}
                 <div>
-                  <label className="block text-slate-700 text-sm font-bold mb-2">Ism Familiya</label>
-                  <input 
-                    type="text" required
-                    className="w-full border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:outline-none"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 text-sm font-bold mb-2">Email</label>
-                  <input 
-                    type="email" required
-                    className="w-full border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:outline-none"
-                    value={editForm.email}
-                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 text-sm font-bold mb-2">Foydalanuvchi roli</label>
-                  <select 
-                    className="w-full border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:outline-none"
-                    value={editForm.role}
-                    onChange={(e) => setEditForm({...editForm, role: e.target.value})}
-                  >
-                     <option value="student">Talaba (Student)</option>
-                     <option value="teacher">O'qituvchi (Teacher)</option>
-                     <option value="admin">Administrator (Admin)</option>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Rol</label>
+                  <select value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-400">
+                    <option value="student">Talaba (Student)</option>
+                    <option value="teacher">O'qituvchi (Teacher)</option>
+                    <option value="admin">Administrator (Admin)</option>
                   </select>
                 </div>
-                
-                <button 
-                  type="submit" 
-                  disabled={editLoading}
-                  className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-3 px-8 rounded-xl transition disabled:opacity-50 mt-4"
-                >
+                <button type="submit" disabled={editLoading}
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black py-3 rounded-xl shadow-lg shadow-violet-200 transition-all disabled:opacity-50 mt-2">
                   {editLoading ? 'Saqlanmoqda...' : 'Saqlash'}
                 </button>
-             </form>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
 
+        {/* Group Students Modal */}
+        {viewGroupId && (
+          <GroupStudentsModal
+            key="students-modal"
+            groupId={viewGroupId}
+            allGroups={groups}
+            onClose={() => setViewGroupId(null)}
+            onRefresh={fetchUsers}
+          />
+        )}
+
+        {/* Edit Group Modal */}
+        {editingGroup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl relative"
+            >
+              <button onClick={() => setEditingGroup(null)} className="absolute top-5 right-5 p-2 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors">
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+              <h2 className="text-xl font-black text-slate-800 mb-6">Guruhni tahrirlash</h2>
+              <form onSubmit={handleGroupUpdateSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Guruh nomi</label>
+                  <input type="text" required value={groupEditForm.name}
+                    onChange={e => setGroupEditForm({ ...groupEditForm, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-400" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">O'qituvchi</label>
+                  <select value={groupEditForm.teacherId} onChange={e => setGroupEditForm({ ...groupEditForm, teacherId: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-violet-400">
+                    <option value="">— O'qituvchi yo'q —</option>
+                    {teachersList.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <button type="submit" disabled={groupEditLoading}
+                  className="w-full bg-violet-600 hover:bg-violet-700 text-white font-black py-3 rounded-xl shadow-lg shadow-violet-200 transition-all disabled:opacity-50 mt-2">
+                  {groupEditLoading ? 'Saqlanmoqda...' : 'Saqlash'}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

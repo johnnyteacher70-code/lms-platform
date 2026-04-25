@@ -1,25 +1,49 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #6366f1; /* Indigo 500 */
-  --color-primary-hover: #4f46e5; /* Indigo 600 */
-  --color-background: #f8fafc; /* Slate 50 */
-  --color-surface: #ffffff;
-  --color-text-main: #0f172a; /* Slate 900 */
-  --color-text-muted: #64748b; /* Slate 500 */
+  /* Premium HSL Palette */
+  --color-primary: hsl(243, 75%, 59%); /* Vivid Indigo */
+  --color-primary-hover: hsl(243, 75%, 50%);
+  --color-primary-light: hsl(243, 75%, 96%);
+  
+  --color-accent: hsl(270, 75%, 60%); /* Purple */
+  --color-background: hsl(220, 33%, 98%); /* Soft Slate */
+  --color-surface: hsl(0, 0%, 100%);
+  
+  --color-text-main: hsl(222, 47%, 11%);
+  --color-text-muted: hsl(215, 16%, 47%);
+  
+  /* Custom Shadows */
+  --shadow-premium: 0 10px 30px -10px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02);
+  --shadow-premium-hover: 0 20px 40px -15px rgba(0, 0, 0, 0.1), 0 8px 12px -6px rgba(0, 0, 0, 0.05);
 }
 
 body {
-  @apply bg-background text-slate-800;
+  @apply text-slate-800 antialiased selection:bg-violet-100 selection:text-violet-700;
   font-family: 'Outfit', sans-serif;
-  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  background-color: #F0F2F8;
 }
 
-/* Glassmorphism utility */
+/* Premium Utilities */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  @apply bg-white/70 backdrop-blur-xl border-b border-white/30;
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/50 shadow-premium;
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+}
+
+.btn-premium {
+  @apply relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-primary/20 active:scale-95 disabled:opacity-50;
+}
+
+/* Smooth Transitions for all interactive elements */
+a, button, input {
+  @apply transition-all duration-200;
 }

@@ -16,6 +16,7 @@ import TeacherModules from './pages/TeacherModules'
 import StudentModules from './pages/StudentModules'
 import TeacherChat from './pages/TeacherChat'
 import StudentChat from './pages/StudentChat'
+import StudentGroupStats from './pages/StudentGroupStats'
 
 // Layouts & Guards
 import MainLayout from './layouts/MainLayout'
@@ -72,6 +73,12 @@ export default function App() {
         {/* Immersive Full-Screen Routes (No Sidebar) */}
         <Route path="/lesson/:courseId" element={<LessonPage />} />
 
+        {/* Teacher Dashboard - Full Screen, own layout */}
+        <Route element={<RoleBasedRoute allowedRoles={['teacher']} />}>
+          <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
+          <Route path="/teacher-dashboard/groups" element={<TeacherDashboard />} />
+        </Route>
+
         {/* Dashboard Routes (With Sidebar) */}
         <Route element={<DashboardLayout />}>
           <Route element={<RoleBasedRoute allowedRoles={['admin']} />}>
@@ -79,8 +86,6 @@ export default function App() {
           </Route>
 
           <Route element={<RoleBasedRoute allowedRoles={['teacher']} />}>
-            <Route path="/teacher-dashboard" element={<TeacherDashboard />} />
-            <Route path="/teacher-dashboard/groups" element={<TeacherDashboard />} />
             <Route path="/teacher-dashboard/modules" element={<TeacherModules />} />
             <Route path="/teacher-dashboard/chat" element={<TeacherChat />} />
           </Route>
@@ -89,6 +94,7 @@ export default function App() {
             <Route path="/student-dashboard" element={<StudentDashboard />} />
             <Route path="/student-dashboard/modules" element={<StudentModules />} />
             <Route path="/student-dashboard/chat" element={<StudentChat />} />
+            <Route path="/student-dashboard/group" element={<StudentGroupStats />} />
           </Route>
         </Route>
 

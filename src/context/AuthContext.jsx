@@ -3,19 +3,23 @@ import { createContext, useState, useEffect } from 'react';
 export const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token') || null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // If we have a token but no user, we could decode the token or fetch user info from API.
-    // For now, we'll try to get user data from localStorage to persist login state.
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
+  const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user');
-    if (savedUser && token) {
-      setUser(JSON.parse(savedUser));
+    if (savedUser) {
+      try {
+        return JSON.parse(savedUser);
+      } catch (err) {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        return null;
+      }
     }
-    setIsLoading(false);
-  }, [token]);
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  // We no longer need the useEffect to sync from localStorage as it's handled in the initial state
 
   // Login function handles storing the token and user data
   const login = (userData, authToken) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getTeacherContacts, getMessages } from '../services/chatApi';
 import { io } from 'socket.io-client';
@@ -11,18 +11,14 @@ export default function TeacherChat() {
   const [messages, setMessages] = useState([]);
   const [inputStr, setInputStr] = useState("");
   const endRef = useRef(null);
-  const [socket, setSocket] = useState(null);
+  const socket = useMemo(() => io('http://localhost:5000'), []);
 
   useEffect(() => {
-    const s = io('http://localhost:5000');
-    setSocket(s);
-    
     getTeacherContacts(user._id).then(res => {
       setContacts(res.data);
     });
-
-    return () => s.disconnect();
-  }, [user._id]);
+    return () => socket.disconnect();
+  }, [user._id, socket]);
 
   useEffect(() => {
     if (activeContact) {
@@ -33,14 +29,15 @@ export default function TeacherChat() {
   }, [activeContact, user._id]);
 
   useEffect(() => {
-    if (socket) {
-      socket.on('receive_message', (msg) => {
-        if (activeContact && ((msg.senderId === user._id && msg.receiverId === activeContact._id) ||
-            (msg.senderId === activeContact._id && msg.receiverId === user._id))) {
-          setMessages(prev => [...prev, msg]);
-        }
-      });
-    }
+    socket.on('receive_message', (msg) => {
+      if (activeContact && ((msg.senderId === user._id && msg.receiverId === activeContact._id) ||
+          (msg.senderId === activeContact._id && msg.receiverId === user._id))) {
+        setMessages(prev => [...prev, msg]);
+      }
+    });
+    return () => {
+      socket.off('receive_message');
+    };
   }, [socket, activeContact, user._id]);
 
   useEffect(() => {

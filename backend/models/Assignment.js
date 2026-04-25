@@ -5,7 +5,8 @@ const assignmentSchema = new mongoose.Schema({
   description: { type: String, required: true },
   deadline: { type: Date, required: true },
   teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true }
+  groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true },
+  lessonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lesson' } // Agar vazifa aniq darsga tegishli bo'lsa
 }, { timestamps: true });
 
 module.exports = mongoose.model('Assignment', assignmentSchema);

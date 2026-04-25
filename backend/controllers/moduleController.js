@@ -1,7 +1,11 @@
 const Module = require('../models/Module');
 const Lesson = require('../models/Lesson');
+const Assignment = require('../models/Assignment');
+const Submission = require('../models/Submission');
 
 // ------- MODULES -------
+// ... (createModule, getTeacherModules, getStudentModules remain same)
+
 exports.createModule = async (req, res) => {
   try {
      const { title, teacherId, groupId } = req.body;
@@ -38,16 +42,15 @@ exports.getStudentModules = async (req, res) => {
 // ------- LESSONS -------
 exports.createLesson = async (req, res) => {
   try {
-     const { moduleId, title, content, videoUrl } = req.body;
+     const { moduleId, title, content, videoUrl, passingGrade } = req.body;
      let fileUrl = null;
      
-     // req.file mutler orqali keladi
      if (req.file) {
         fileUrl = `/uploads/${req.file.filename}`;
      }
      
      const newLesson = await Lesson.create({
-        moduleId, title, content, videoUrl, fileUrl
+        moduleId, title, content, videoUrl, fileUrl, passingGrade: passingGrade || 60
      });
      res.status(201).json(newLesson);
   } catch(err) {
@@ -57,8 +60,32 @@ exports.createLesson = async (req, res) => {
 
 exports.getLessonsByModule = async (req, res) => {
   try {
-     const lessons = await Lesson.find({ moduleId: req.params.moduleId }).sort({ createdAt: 1 }); // Eski darslar ro'yhatda birinchi chiqadi
-     res.json(lessons);
+     const { userId } = req.query; // Progressni tekshirish uchun userId ixtiyoriy
+     const lessons = await Lesson.find({ moduleId: req.params.moduleId }).sort({ createdAt: 1 });
+     
+     const lessonsWithProgress = await Promise.all(lessons.map(async (lesson) => {
+        // Har bir darsga tegishli vazifani topish
+        const assignment = await Assignment.findOne({ lessonId: lesson._id });
+        let submission = null;
+        
+        if (assignment && userId) {
+           submission = await Submission.findOne({ assignmentId: assignment._id, studentId: userId });
+        }
+        
+        return {
+           ...lesson.toObject(),
+           assignment: assignment ? {
+              _id: assignment._id,
+              title: assignment.title,
+              submission: submission ? {
+                 status: submission.status,
+                 grade: submission.grade
+              } : null
+           } : null
+        };
+     }));
+
+     res.json(lessonsWithProgress);
   } catch(err) {
      res.status(500).json({ message: 'Xatolik yuz berdi' });
   }

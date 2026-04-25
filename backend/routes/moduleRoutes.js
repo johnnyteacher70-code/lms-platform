@@ -9,6 +9,7 @@ const {
    createLesson, 
    getLessonsByModule 
 } = require('../controllers/moduleController');
+const { getLessonComments, postComment } = require('../controllers/lessonCommentController');
 
 // Fayllar yuklanishi uchun multer konfiguratsiyasi
 const storage = multer.diskStorage({
@@ -31,5 +32,9 @@ router.get('/modules/student/:groupId', getStudentModules);
 // Kunlik Darslar API (Faqat bitta fayl yuklanishiga ruxsat beramiz)
 router.post('/lessons', upload.single('material'), createLesson);
 router.get('/lessons/:moduleId', getLessonsByModule);
+
+// Savol-javob API
+router.get('/comments/:lessonId', getLessonComments);
+router.post('/comments', postComment);
 
 module.exports = router;

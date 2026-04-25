@@ -10,6 +10,8 @@ const userSchema = new mongoose.Schema({
     default: 'student' 
   },
   groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Group', default: null },
+  phone: { type: String, default: '' },
+  avatar: { type: String, default: '' },
   lastLogin: { type: Date, default: Date.now }
 }, { timestamps: true });
 

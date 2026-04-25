@@ -2,7 +2,11 @@ const mongoose = require('mongoose');
 
 const attendanceRecordSchema = new mongoose.Schema({
   studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  status: { type: String, enum: ['present', 'absent'], default: 'present' }
+  status: { type: String, enum: ['present', 'absent'], default: 'present' },
+  scores: [{
+    category: { type: String, enum: ['homework', 'classwork', 'helping', 'other'], default: 'classwork' },
+    value: { type: Number, default: 0 }
+  }]
 }, { _id: false });
 
 const attendanceSchema = new mongoose.Schema({

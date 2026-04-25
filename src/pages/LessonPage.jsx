@@ -1,183 +1,267 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import LessonItem from '../components/LessonItem';
+import LessonComments from '../components/LessonComments';
+import { getStudentModules, getLessonsByModule } from '../services/moduleApi';
+import { getYouTubeID } from '../utils/videoHelper';
+import { Lock, Play, ChevronLeft, Calendar, FileText, CheckCircle } from 'lucide-react';
 
 export default function LessonPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   
-  // Fake mock data for the lesson
-  const courseTitle = "The Complete Masterclass for React & Node.js";
+  const [modules, setModules] = useState([]);
+  const [allLessons, setAllLessons] = useState([]);
+  const [activeLesson, setActiveLesson] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [activeLessonId, setActiveLessonId] = useState(1);
+  const [loading, setLoading] = useState(true);
 
-  const curriculum = [
-    {
-      section: '1-Modul: Asoslarni Organish',
-      lessons: [
-        { id: 1, title: 'Kirish so\'zi va Kurs Rejasi', duration: '05:30', isCompleted: true },
-        { id: 2, title: 'Atrof-muhitni o\'rnatish (Node & Git)', duration: '12:45', isCompleted: false },
-        { id: 3, title: 'Ilk React komponentimizni yozamiz', duration: '18:20', isCompleted: false },
-      ]
-    },
-    {
-      section: '2-Modul: Chuqur tushunchalar',
-      lessons: [
-        { id: 4, title: 'State va Props nima?', duration: '22:15', isCompleted: false },
-        { id: 5, title: 'Context API orqali proyektni boshqarish', duration: '35:00', isCompleted: false },
-      ]
+  useEffect(() => {
+    if (user?.groupId) {
+      fetchCurriculum();
     }
-  ];
+  }, [user]);
 
-  const goBack = () => {
-    navigate(-1); // Takes the user back to their dashboard or previous page
+  const fetchCurriculum = async () => {
+    try {
+      setLoading(true);
+      // 1. Gruppa uchun barcha modullarni olamiz
+      const mods = await getStudentModules(user.groupId);
+      
+      // 2. Har bir modul uchun darslarni va progressni olamiz
+      const modulesWithLessons = await Promise.all(mods.map(async (mod) => {
+        const lessons = await getLessonsByModule(mod._id, user._id);
+        return { ...mod, lessons };
+      }));
+
+      setModules(modulesWithLessons);
+
+      // 3. Hammani bitta massivga yig'amiz (navigatsiya va locking uchun)
+      const flatLessons = modulesWithLessons.flatMap(m => m.lessons);
+      setAllLessons(flatLessons);
+
+      // 4. Default birinchi darsni tanlaymiz
+      if (flatLessons.length > 0) {
+        setActiveLesson(flatLessons[0]);
+      }
+    } catch (err) {
+      console.error("Xatolik:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const isLocked = (lessonId) => {
+    const lessonIndex = allLessons.findIndex(l => l._id === lessonId);
+    if (lessonIndex <= 0) return false;
+
+    // Oldingi darslarni tekshiramiz
+    for (let i = 0; i < lessonIndex; i++) {
+      const prevLesson = allLessons[i];
+      // Agar oldingi darsda vazifa bo'lsa
+      if (prevLesson.assignment) {
+        const submission = prevLesson.assignment.submission;
+        const passingGrade = prevLesson.passingGrade || 60;
+
+        // Agar topshirilmagan bo'lsa yoki ball yetarli bo'lmasa - Qulf!
+        if (!submission || (submission.grade === null || submission.grade < passingGrade)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const goBack = () => navigate(-1);
+
+  if (loading) {
+     return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Yuklanmoqda...</div>;
+  }
+
+  const activeIsLocked = activeLesson ? isLocked(activeLesson._id) : false;
+  const youtubeId = activeLesson ? getYouTubeID(activeLesson.videoUrl) : null;
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-900">
+    <div className="min-h-screen flex flex-col bg-slate-950">
       
-      {/* Immersive Top Navbar */}
-      <nav className="h-16 bg-slate-950 border-b border-slate-800 flex items-center justify-between px-6 text-white shrink-0">
-        <div className="flex items-center gap-4">
-          <button onClick={goBack} className="text-slate-400 hover:text-white transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+      {/* Top Navbar */}
+      <nav className="h-20 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800 flex items-center justify-between px-8 text-white shrink-0 sticky top-0 z-50">
+        <div className="flex items-center gap-6">
+          <button onClick={goBack} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition-all">
+            <ChevronLeft size={24} />
           </button>
-          <div className="w-px h-6 bg-slate-800"></div>
-          <h1 className="font-bold text-lg md:text-xl truncate max-w-xl">
-            {courseTitle}
-          </h1>
-        </div>
-        <div>
-          <button className="text-sm bg-primary hover:bg-primary-hover px-4 py-2 rounded font-bold transition">
-            Kursni Tugatish
-          </button>
+          <div className="w-px h-8 bg-slate-800 hidden md:block"></div>
+          <div>
+            <h1 className="font-black text-xl tracking-tight truncate max-w-md lg:max-w-xl">
+              {activeLesson?.title || "Dars yuklanmoqda..." }
+            </h1>
+            <p className="text-[10px] uppercase font-black tracking-widest text-indigo-400">
+               {modules.find(m => m.lessons.some(l => l._id === activeLesson?._id))?.title || "Kurs moduli"}
+            </p>
+          </div>
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <div className="flex flex-col lg:flex-row flex-grow overflow-hidden h-[calc(100vh-4rem)]">
+      {/* Main Content */}
+      <div className="flex flex-col lg:flex-row flex-grow overflow-hidden h-[calc(100vh-5rem)]">
         
-        {/* Left Side: Video Player & Info (Takes 70%) */}
-        <div className="flex-grow flex flex-col bg-slate-900 overflow-y-auto">
+        {/* Left Side: Video & Info */}
+        <div className="flex-grow flex flex-col bg-slate-900 overflow-y-auto custom-scrollbar">
           
-          {/* Black Video Container */}
-          <div className="w-full bg-black aspect-video flex-shrink-0 flex items-center justify-center relative">
-            {/* Fake Video Player Placeholder */}
-            <div className="absolute inset-0 bg-slate-800 opacity-50 flex flex-col items-center justify-center"></div>
-            <img 
-              src="https://picsum.photos/seed/lesson/1920/1080" 
-              alt="Video thumbnail"
-              className="w-full h-full object-cover opacity-60"
-            />
-            {/* Play Button Mock */}
-            <button className="absolute w-20 h-20 bg-primary/90 text-white rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:scale-110 hover:bg-primary transition-all duration-300">
-              <svg className="w-10 h-10 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"></path></svg>
-            </button>
-            {/* Fake Controls */}
-            <div className="absolute bottom-0 w-full h-12 bg-gradient-to-t from-black/80 to-transparent flex items-center px-4 gap-4 text-white text-sm">
-              <svg className="w-5 h-5 pointer-events-none" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"></path></svg>
-              <div className="w-full h-1 bg-white/30 rounded-full"><div className="w-1/3 h-full bg-primary rounded-full"></div></div>
-              <span>05:30 / 12:45</span>
-            </div>
-          </div>
-
-          {/* Lesson Metadata Below Video */}
-          <div className="p-6 md:p-10 bg-white min-h-[50vh] rounded-t-3xl mt-[-20px] relative z-10">
-            {/* Tab Links */}
-            <div className="flex border-b border-slate-200 mb-8 overflow-x-auto hide-scrollbar">
-              <button 
-                onClick={() => setActiveTab('overview')}
-                className={`py-4 px-6 font-bold whitespace-nowrap transition-colors border-b-2 
-                  ${activeTab === 'overview' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-800'}`
-                }
-              >
-                Dars haqida (Overview)
-              </button>
-              <button 
-                onClick={() => setActiveTab('live')}
-                className={`py-4 px-6 font-bold whitespace-nowrap transition-colors border-b-2 flex items-center gap-2
-                  ${activeTab === 'live' ? 'border-red-500 text-red-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`
-                }
-              >
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                Jonli Efir (Zoom/Meet)
-              </button>
-              <button 
-                onClick={() => setActiveTab('downloads')}
-                className={`py-4 px-6 font-bold whitespace-nowrap transition-colors border-b-2 
-                  ${activeTab === 'downloads' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-800'}`
-                }
-              >
-                Qo'shimcha Fayllar
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            {activeTab === 'overview' && (
-              <div>
-                <h2 className="text-2xl font-extrabold text-slate-900 mb-4">Kirish so'zi va Kurs Rejasi</h2>
-                <div className="prose max-w-none text-slate-600">
-                  <p className="mb-4">Bu darsda biz siz bilan kurs davomida qanday bilimlarni o'rganishimiz haqida gaplashamiz. Video ustiga bosib tomoshani boshlang!</p>
-                  <p>Har bir videoda aytilgan vazifalarni to'liq bajarib borishingiz kerak. Dars yakuniga yetgach, yon menyudan ikkinchi darsga o'tishingiz mumkin.</p>
+          {/* Video Container */}
+          <div className="w-full bg-black aspect-video flex-shrink-0 flex items-center justify-center relative shadow-2xl">
+            {activeIsLocked ? (
+              <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md flex flex-col items-center justify-center p-10 text-center z-20">
+                <div className="w-20 h-20 bg-rose-500/20 text-rose-500 rounded-full flex items-center justify-center mb-6 border border-rose-500/30">
+                  <Lock size={40} />
                 </div>
+                <h3 className="text-3xl font-black text-white mb-4">Ushbu dars hozircha qulflangan</h3>
+                <p className="text-slate-400 max-w-md leading-relaxed">
+                   Darsni ko'rish uchun oldingi dars vazifasini topshirishingiz va kamida 
+                   <span className="text-white font-bold mx-1">{allLessons[allLessons.findIndex(l => l._id === activeLesson?._id)-1]?.passingGrade || 60} ball</span> 
+                   to'plashingiz kerak.
+                </p>
               </div>
-            )}
-
-            {activeTab === 'live' && (
-              <div className="bg-red-50 border border-red-100 rounded-xl p-8 text-center max-w-2xl mx-auto">
-                <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">Jonli Efir Havolasi</h2>
-                <p className="text-slate-600 mb-6">O'qituvchingiz tomonidan belgilangan vaqtda quyidagi havola orqali Zoom/Google Meet guruhiga qo'shilishingiz mumkin.</p>
-                <a href="#" className="inline-block bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 rounded-lg transition-colors shadow-lg shadow-red-200">
-                  Join Live Class →
-                </a>
-              </div>
-            )}
-
-            {activeTab === 'downloads' && (
-              <div>
-                 <h2 className="text-xl font-bold text-slate-900 mb-4">Biriktirilgan fayllar</h2>
-                 <div className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-4 rounded-xl max-w-sm cursor-pointer hover:bg-slate-100 transition">
-                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded flex items-center justify-center">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800 text-sm">Homework_Requirements.pdf</p>
-                      <p className="text-xs text-slate-500">2.4 MB</p>
-                    </div>
-                 </div>
+            ) : youtubeId ? (
+              <iframe
+                className="w-full h-full"
+                src={`https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1&autoplay=1`}
+                title="YouTube video player"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              ></iframe>
+            ) : (
+              <div className="text-slate-500 flex flex-col items-center gap-4">
+                <Play size={64} className="opacity-20" />
+                <span>Video topilmadi</span>
               </div>
             )}
           </div>
 
+          {/* Info Area */}
+          <div className="p-8 md:p-12 bg-white min-h-[50vh] rounded-t-[40px] mt-[-30px] relative z-10 shadow-[0_-20px_50px_rgba(0,0,0,0.2)]">
+            <div className="flex border-b border-slate-100 mb-10 overflow-x-auto hide-scrollbar gap-2">
+              {[
+                { id: 'overview', label: 'Dars haqida', icon: <FileText size={18}/> },
+                { id: 'downloads', label: 'Materiallar', icon: <Calendar size={18}/> },
+              ].map(tab => (
+                <button 
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-4 px-8 font-black text-sm uppercase tracking-widest transition-all border-b-4 flex items-center gap-3
+                    ${activeTab === tab.id ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:text-slate-600'}`
+                  }
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="max-w-4xl">
+              {activeTab === 'overview' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <h2 className="text-3xl font-black text-slate-900 mb-6">{activeLesson?.title}</h2>
+                  <div 
+                    className="prose prose-slate max-w-none text-slate-600 leading-loose text-lg"
+                    dangerouslySetInnerHTML={{ __html: activeLesson?.content || "Ushbu dars uchun qo'shimcha ma'lumot kiritilmagan." }}
+                  />
+
+                  {/* Q&A Section */}
+                  {activeLesson && (
+                    <LessonComments 
+                      lessonId={activeLesson._id} 
+                      userId={user._id} 
+                      userName={user.name} 
+                    />
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'downloads' && (
+                <div className="animate-in fade-in duration-500">
+                   <h2 className="text-xl font-bold text-slate-900 mb-6">Biriktirilgan fayllar va Vazifalar</h2>
+                   <div className="grid gap-4">
+                      {activeLesson?.fileUrl && (
+                        <a 
+                          href={activeLesson.fileUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="flex items-center gap-4 bg-slate-50 border border-slate-200 p-6 rounded-2xl group hover:bg-indigo-50 hover:border-indigo-200 transition-all"
+                        >
+                          <div className="w-12 h-12 bg-white text-indigo-600 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                            <FileText size={24} />
+                          </div>
+                          <div>
+                            <p className="font-black text-slate-800 text-sm">Dars Materiali (Yuklab olish)</p>
+                            <p className="text-xs text-slate-500">O'qituvchi tomonidan biriktirilgan qo'shimcha fayl</p>
+                          </div>
+                        </a>
+                      )}
+                      
+                      {activeLesson?.assignment && (
+                        <div className="bg-indigo-600 p-8 rounded-[32px] text-white shadow-xl shadow-indigo-200 relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
+                           <h3 className="text-2xl font-black mb-2 leading-tight">Dars Vazifasi: {activeLesson.assignment.title}</h3>
+                           <p className="text-indigo-100 text-sm mb-6 max-w-md">Ushbu darsni yakunlash uchun vazifani Dashbord orqali topshiring.</p>
+                           
+                           {activeLesson.assignment.submission ? (
+                             <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20 w-fit">
+                                <CheckCircle size={16} />
+                                <span className="text-xs font-black uppercase tracking-wider">
+                                   Topshirilgan: {activeLesson.assignment.submission.grade || 0} ball
+                                </span>
+                             </div>
+                           ) : (
+                             <button 
+                               onClick={() => navigate('/dashboard')}
+                               className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-colors shadow-lg"
+                             >
+                               Hozir topshirish →
+                             </button>
+                           )}
+                        </div>
+                      )}
+                      
+                      {!activeLesson?.fileUrl && !activeLesson?.assignment && (
+                        <p className="text-slate-400 italic">Bu darsda qo'shimcha materiallar yo'q.</p>
+                      )}
+                   </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Right Side: Course Curriculum Drawer (Takes 30%) */}
-        <div className="w-full lg:w-96 bg-white border-l border-slate-200 flex-shrink-0 flex flex-col h-full overflow-hidden">
-          <div className="p-4 border-b border-slate-200 font-extrabold text-slate-800 shadow-sm z-10 shrink-0 bg-white">
-            Darslar Ro'yxati (Curriculum)
+        {/* Right Side Sidebar */}
+        <div className="w-full lg:w-[400px] bg-white border-l border-slate-100 flex-shrink-0 flex flex-col h-full overflow-hidden shadow-2xl z-20">
+          <div className="p-8 border-b border-slate-100 font-black text-slate-900 text-xl tracking-tight shrink-0 flex items-center justify-between">
+            Kurs Mundarijasi
+            <span className="text-[10px] px-3 py-1 bg-slate-100 rounded-full text-slate-500 uppercase tracking-widest">{allLessons.length} dars</span>
           </div>
           
-          <div className="overflow-y-auto flex-grow bg-slate-50">
-            {curriculum.map((module, index) => (
-              <div key={index} className="mb-2">
-                {/* Module Header */}
-                <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 border-t sticky top-0 font-bold text-sm text-slate-700">
-                  {module.section}
+          <div className="overflow-y-auto flex-grow bg-slate-50/50 p-4 custom-scrollbar">
+            {modules.map((module, mIdx) => (
+              <div key={module._id} className="mb-6 animate-in fade-in slide-in-from-right-4 duration-300" style={{ animationDelay: `${mIdx * 100}ms` }}>
+                <div className="px-4 py-3 font-black text-[11px] text-slate-400 uppercase tracking-[0.2em] mb-2">
+                  {mIdx + 1}. {module.title}
                 </div>
-                {/* Module Lessons */}
-                <div className="bg-white">
-                  {module.lessons.map(lesson => (
-                    <LessonItem 
-                      key={lesson.id}
-                      title={lesson.title}
-                      duration={lesson.duration}
-                      isCompleted={lesson.isCompleted}
-                      isPlaying={lesson.id === activeLessonId}
-                      onClick={() => setActiveLessonId(lesson.id)}
-                    />
-                  ))}
+                <div className="space-y-2">
+                  {module.lessons.map(lesson => {
+                    const locked = isLocked(lesson._id);
+                    return (
+                      <LessonItem 
+                        key={lesson._id}
+                        title={lesson.title}
+                        duration={lesson.duration || "10:00"}
+                        isCompleted={lesson.assignment?.submission?.grade >= (lesson.passingGrade || 60)}
+                        isPlaying={lesson._id === activeLesson?._id}
+                        isLocked={locked}
+                        onClick={() => !locked && setActiveLesson(lesson)}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             ))}

@@ -22,7 +22,8 @@ export const createLesson = async (formData) => {
     return response.data;
 };
 
-export const getLessonsByModule = async (moduleId) => {
-    const response = await API.get(`/lessons/${moduleId}`);
+export const getLessonsByModule = async (moduleId, userId) => {
+    const url = userId ? `/lessons/${moduleId}?userId=${userId}` : `/lessons/${moduleId}`;
+    const response = await API.get(url);
     return response.data;
 };

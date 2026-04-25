@@ -1,18 +1,18 @@
+import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
+import AppNavbar from '../components/AppNavbar';
+import AppSidebar from '../components/AppSidebar';
 
 export default function DashboardLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
-      <Navbar />
-      <div className="flex-grow flex">
-        <Sidebar />
-        <main className="flex-grow p-6 lg:p-10 bg-slate-50 w-full overflow-hidden">
-          <div className="max-w-6xl mx-auto h-full">
-            {/* The individual page (Student, Teacher, Admin Dash) is injected here */}
-            <Outlet />
-          </div>
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#F0F2F8] font-sans">
+      <AppNavbar onMenuClick={() => setSidebarOpen(true)} />
+      <div className="flex-grow flex overflow-hidden relative">
+        <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main className="flex-grow overflow-y-auto p-4 md:p-6 lg:p-8">
+          <Outlet />
         </main>
       </div>
     </div>

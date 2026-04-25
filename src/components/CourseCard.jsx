@@ -1,68 +1,81 @@
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Star, Users, ArrowRight } from 'lucide-react';
 
 export default function CourseCard({ course }) {
   // We use placeholder images based on the course ID to make it look realistic
   const placeholderImg = `https://picsum.photos/seed/${course.id}/600/400`;
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 flex flex-col group cursor-pointer hover:-translate-y-1">
+    <motion.div 
+      whileHover={{ y: -8 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white rounded-3xl overflow-hidden shadow-premium hover:shadow-premium-hover transition-all duration-500 border border-slate-100 flex flex-col group cursor-pointer"
+    >
       
       {/* Cover Image */}
-      <div className="relative h-48 overflow-hidden">
-        <img 
+      <div className="relative h-52 overflow-hidden">
+        <motion.img 
           src={course.image || placeholderImg} 
           alt={course.title} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
         {/* Optional Badge */}
         {course.badge && (
-          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary rounded-full shadow">
+          <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-md px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] text-primary rounded-xl shadow-xl shadow-black/10 border border-white/50">
             {course.badge}
           </div>
         )}
       </div>
 
       {/* Card Content */}
-      <div className="p-6 flex flex-col flex-grow">
+      <div className="p-7 flex flex-col flex-grow">
         
         {/* Meta Info */}
-        <div className="flex items-center text-xs text-slate-500 space-x-4 mb-3">
-          <span className="flex items-center gap-1">
-            <svg className="w-4 h-4 text-orange-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+        <div className="flex items-center gap-4 mb-4">
+          <span className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-2 py-1 rounded-lg text-[11px] font-bold border border-amber-100">
+            <Star size={12} fill="currentColor" />
             {course.rating || '4.8'}
           </span>
-          <span className="flex items-center gap-1">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-            {course.students || '1.2k'} Students
+          <span className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
+            <Users size={12} />
+            {course.students || '1.2k'}
           </span>
         </div>
 
         {/* Title */}
-        <h3 className="text-xl font-bold text-slate-800 mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+        <h3 className="text-lg font-extrabold text-slate-900 mb-2 line-clamp-2 leading-snug group-hover:text-primary transition-colors duration-300">
           {course.title}
         </h3>
         
         {/* Instructor */}
-        <p className="text-sm text-slate-500 mb-6">
-          By <span className="font-medium text-slate-700">{course.instructor}</span>
-        </p>
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-5 h-5 rounded-full bg-slate-100"></div>
+          <p className="text-xs text-slate-500 font-medium">
+            By <span className="font-bold text-slate-700">{course.instructor}</span>
+          </p>
+        </div>
 
         {/* Footer actions */}
-        <div className="mt-auto flex justify-between items-center pt-4 border-t border-slate-100">
-          <span className="text-xl font-bold tracking-tight text-slate-900">
-            {course.price === 0 ? 'Free' : `$${course.price}`}
-          </span>
+        <div className="mt-auto flex justify-between items-center pt-5 border-t border-slate-100/60">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Price</span>
+            <span className="text-xl font-black text-slate-900">
+              {course.price === 0 ? 'Free' : `$${course.price.toFixed(2)}`}
+            </span>
+          </div>
           
           <Link 
             to={`/course/${course.id}`} 
-            className="text-sm font-semibold w-10 h-10 rounded-full flex items-center justify-center bg-indigo-50 text-primary group-hover:bg-primary group-hover:text-white transition-colors"
+            className="w-12 h-12 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center group-hover:bg-primary group-hover:text-white group-hover:shadow-lg group-hover:shadow-primary/30 transition-all duration-300"
             title="View Course"
           >
-            →
+            <ArrowRight size={20} strokeWidth={2.5} />
           </Link>
         </div>
-        
       </div>
-    </div>
+    </motion.div>
   );
 }

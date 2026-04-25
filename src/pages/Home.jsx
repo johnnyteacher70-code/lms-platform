@@ -1,4 +1,6 @@
+import { motion } from 'framer-motion';
 import CourseCard from '../components/CourseCard';
+import { ArrowRight, Sparkles, Play, ShieldCheck, Globe } from 'lucide-react';
 
 // Temporary mock data until API is fully implemented
 const MOCK_COURSES = [
@@ -12,81 +14,136 @@ const MOCK_COURSES = [
 
 export default function Home() {
   return (
-    <div className="w-full">
+    <div className="w-full bg-background overflow-x-hidden">
       {/* 🔴 HERO SECTION */}
-      <section className="relative bg-white overflow-hidden border-b border-slate-200">
+      <section className="relative min-h-[90vh] flex items-center pt-20 pb-12 overflow-hidden">
+        {/* Background Elements */}
         <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 to-purple-50/50"></div>
-          {/* Decorative blur elements */}
-          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-primary/10 rounded-full filter blur-3xl opacity-50"></div>
-          <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-purple-500/10 rounded-full filter blur-3xl opacity-50"></div>
+          <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-primary/5 rounded-full filter blur-[120px] -mr-96 -mt-96 animate-pulse"></div>
+          <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-accent/5 rounded-full filter blur-[100px] -ml-64 -mb-64"></div>
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32 flex flex-col md:flex-row items-center">
-          <div className="md:w-1/2 text-center md:text-left mb-12 md:mb-0">
-            <h1 className="text-4xl md:text-6xl font-extrabold text-slate-900 tracking-tight leading-tight mb-6">
-              Learn Without <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-500">Limits.</span>
+        <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 flex flex-col lg:flex-row items-center gap-16">
+          <motion.div 
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            className="lg:w-3/5 text-center lg:text-left"
+          >
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-primary/10 text-primary border border-primary/10 mb-8"
+            >
+              <Sparkles size={16} className="animate-pulse" />
+              <span className="text-xs font-black uppercase tracking-[0.2em]">Yangi Davr Ta'limi</span>
+            </motion.div>
+
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-black text-slate-900 tracking-tight leading-[1.1] mb-8">
+              Bilimga <span className="text-gradient">Cheksiz</span> <br /> 
+              Yo'l Oching.
             </h1>
-            <p className="text-lg md:text-xl text-slate-600 mb-8 max-w-lg mx-auto md:mx-0">
-              Build your skills with our constantly growing library of video courses, taught by expert instructors.
+            
+            <p className="text-lg md:text-xl text-slate-500 mb-10 max-w-2xl mx-auto lg:mx-0 font-medium leading-relaxed">
+              O'z sohangizning eng yaxshi mutaxassislaridan o'rganing. 10,000 dan ortiq darslar va sertifikatlar bilan karyerangizni yangi bosqichga olib chiqing.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-              <button className="bg-primary hover:bg-primary-hover text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all hover:-translate-y-1">
-                Explore Courses
-              </button>
-              <button className="bg-white text-slate-800 border border-slate-200 hover:bg-slate-50 px-8 py-4 rounded-xl font-bold shadow-sm transition-all">
-                Learn More
-              </button>
+
+            <div className="flex flex-col sm:flex-row gap-5 justify-center lg:justify-start">
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="bg-primary hover:bg-primary-hover text-white px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-wider shadow-2xl shadow-primary/30 flex items-center justify-center gap-3 group"
+              >
+                Kurslarni Ko'rish
+                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              </motion.button>
+              
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="bg-white text-slate-900 border border-slate-200 hover:border-primary/30 px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-wider shadow-xl shadow-slate-200/50 flex items-center justify-center gap-3"
+              >
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <Play size={14} fill="currentColor" />
+                </div>
+                Video Tanishtiruv
+              </motion.button>
             </div>
-          </div>
+
+            <div className="mt-12 flex items-center justify-center lg:justify-start gap-8 opacity-60">
+               <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                  <ShieldCheck size={16} /> 100% Xavfsiz
+               </div>
+               <div className="flex items-center gap-2 text-xs font-bold text-slate-500">
+                  <Globe size={16} /> Dunyo miqyosida
+               </div>
+            </div>
+          </motion.div>
           
-          <div className="md:w-1/2 flex justify-center md:justify-end">
-            {/* Hero Graphic / Image Placeholder */}
-            <div className="relative w-full max-w-md">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 1, delay: 0.3 }}
+            className="lg:w-2/5 relative"
+          >
+            <div className="relative z-10 p-4 bg-white rounded-[40px] shadow-2xl border border-white/50">
               <img 
-                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" 
-                alt="Students Learning" 
-                className="rounded-2xl shadow-2xl relative z-10 border-4 border-white"
+                src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+                alt="Students" 
+                className="rounded-[32px] w-full"
               />
-              {/* Floating element for aesthetics */}
-              <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-xl shadow-xl z-20 flex items-center gap-4">
-                <div className="bg-green-100 p-3 rounded-full text-green-600">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+              {/* Floating Stat Card */}
+              <motion.div 
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute -bottom-6 -left-6 md:-bottom-8 md:-left-8 glass-card p-4 md:p-6 rounded-3xl flex items-center gap-3 md:gap-4 z-20 shadow-2xl"
+              >
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-200 shrink-0">
+                  <Globe size={18} strokeWidth={2.5} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Active Students</p>
-                  <p className="text-xl font-extrabold text-slate-800">45,000+</p>
+                  <p className="text-[9px] md:text-[10px] text-slate-400 font-black uppercase tracking-widest leading-none mb-1">Faol Talabalar</p>
+                  <p className="text-lg md:text-xl font-black text-slate-900 leading-none">45,000+</p>
                 </div>
-              </div>
+              </motion.div>
             </div>
-          </div>
+
+            {/* Backdrop Ring */}
+            <div className="absolute -inset-4 border-2 border-primary/20 rounded-[48px] -z-10 animate-spin-slow"></div>
+          </motion.div>
         </div>
       </section>
 
       {/* 🔴 COURSES GRID SECTION */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="flex justify-between items-end mb-10">
-          <div>
-            <h2 className="text-3xl font-extrabold text-slate-900 mb-2">Featured Courses</h2>
-            <p className="text-slate-600">Hand-picked courses by our experts.</p>
-          </div>
-          <button className="hidden sm:inline-block text-primary font-bold hover:text-primary-hover transition-colors">
-            View All →
-          </button>
+      <section className="max-w-7xl mx-auto px-6 lg:px-8 py-32">
+        <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Mashhur Kurslar</h2>
+            <p className="text-slate-500 font-medium text-lg max-w-md">Ekspertlarimiz tomonidan tanlab olingan eng sara video darsliklar.</p>
+          </motion.div>
+          
+          <motion.button 
+            whileHover={{ x: 5 }}
+            className="text-primary font-black uppercase tracking-widest text-xs flex items-center gap-2 group"
+          >
+            Barchasini Ko'rish 
+            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+          </motion.button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {MOCK_COURSES.map(course => (
+        <motion.div 
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10"
+        >
+          {MOCK_COURSES.map((course, idx) => (
             <CourseCard key={course.id} course={course} />
           ))}
-        </div>
-        
-        {/* Mobile View All Button */}
-        <div className="mt-10 text-center sm:hidden">
-          <button className="text-primary font-bold hover:text-primary-hover transition-colors px-6 py-3 border border-primary rounded-xl w-full">
-            View All Courses
-          </button>
-        </div>
+        </motion.div>
       </section>
     </div>
   );
