@@ -9,7 +9,9 @@ import ScoringModal from '../components/Teacher/ScoringModal';
 import TeacherModules from './TeacherModules';
 import TeacherChat from './TeacherChat';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, Bell, Users, LayoutGrid, BookOpen, MessageSquare, Search, ChevronRight, GraduationCap, Layers, Menu, X, Plus, Calendar } from 'lucide-react';
+import { LogOut, Bell, Users, LayoutGrid, BookOpen, MessageSquare, Search, ChevronRight, GraduationCap, Layers, Menu, X, Plus, Calendar, HelpCircle, Trash2 } from 'lucide-react';
+import { getGroupQuizzes } from '../services/quizApi';
+import CreateQuizModal from '../components/Teacher/CreateQuizModal';
 
 export default function TeacherDashboard() {
   const { user, logout } = useAuth();
@@ -37,6 +39,8 @@ export default function TeacherDashboard() {
   const [deadline, setDeadline] = useState('');
   const [creatingTask, setCreatingTask] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [quizzes, setQuizzes] = useState([]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -61,8 +65,18 @@ export default function TeacherDashboard() {
   }, [user]);
 
   useEffect(() => {
-    if (activeGroup) fetchMatrix(activeGroup._id);
+    if (activeGroup) {
+      fetchMatrix(activeGroup._id);
+      fetchQuizzes(activeGroup._id);
+    }
   }, [activeGroup]);
+
+  const fetchQuizzes = async (groupId) => {
+    try {
+      const data = await getGroupQuizzes(groupId);
+      setQuizzes(data);
+    } catch (err) { console.error(err); }
+  };
 
   const fetchMatrix = async (groupId) => {
     try {
@@ -161,6 +175,7 @@ export default function TeacherDashboard() {
     { id: 'jadval', label: 'Davomat', icon: Calendar },
     { id: 'oquvchilar', label: "O'quvchilar", icon: GraduationCap },
     { id: 'homework', label: 'Vazifalar', icon: BookOpen },
+    { id: 'testlar', label: 'Testlar', icon: HelpCircle },
     { id: 'darslar', label: 'Chat', icon: MessageSquare },
   ];
 
@@ -377,6 +392,14 @@ export default function TeacherDashboard() {
                         {showCreateForm ? 'Bekor qilish' : '+ Yangi vazifa'}
                       </button>
                     )}
+                    {activeTab === 'testlar' && (
+                      <button
+                        onClick={() => setShowQuizModal(true)}
+                        className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-black px-5 py-2 rounded-xl shadow-lg shadow-violet-200 transition-all flex items-center gap-2"
+                      >
+                        <Plus size={16} /> Yangi Test
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -387,6 +410,7 @@ export default function TeacherDashboard() {
                     { id: 'davomat', label: 'Davomat Jadvali', icon: Calendar },
                     { id: 'oquvchilar', label: "O'quvchilar", icon: GraduationCap },
                     { id: 'homework', label: 'Vazifalar', icon: BookOpen },
+                    { id: 'testlar', label: 'Testlar', icon: HelpCircle },
                     { id: 'chat', label: 'Chat', icon: MessageSquare },
                   ].map((tab) => {
                     const isActive = activeTab === tab.id;
@@ -613,6 +637,65 @@ export default function TeacherDashboard() {
                   </div>
                 )}
 
+                {/* ─── TAB: TESTLAR ─── */}
+                {activeTab === 'testlar' && (
+                  <div className="flex-grow overflow-auto p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                       {quizzes.map((quiz) => (
+                         <motion.div 
+                           key={quiz._id}
+                           initial={{ opacity: 0, scale: 0.98 }}
+                           animate={{ opacity: 1, scale: 1 }}
+                           className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm hover:shadow-xl hover:shadow-slate-200/50 transition-all group"
+                         >
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="w-10 h-10 rounded-2xl bg-violet-50 flex items-center justify-center text-violet-600">
+                                <HelpCircle size={20} />
+                              </div>
+                              <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${
+                                new Date(quiz.deadline) > new Date() ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                              }`}>
+                                {new Date(quiz.deadline) > new Date() ? 'Aktiv' : 'Yopilgan'}
+                              </span>
+                            </div>
+                            
+                            <h3 className="text-base font-black text-slate-800 mb-2 leading-tight group-hover:text-violet-700 transition-colors">{quiz.title}</h3>
+                            <p className="text-xs text-slate-400 mb-4 line-clamp-2 leading-relaxed">{quiz.description}</p>
+                            
+                            <div className="space-y-3 mb-6">
+                               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                                  <span>Savollar soni:</span>
+                                  <span className="text-slate-800">{quiz.questions?.length} ta</span>
+                               </div>
+                               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                                  <span>Davomiyligi:</span>
+                                  <span className="text-slate-800">{quiz.duration} minut</span>
+                               </div>
+                               <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
+                                  <span>Muddati:</span>
+                                  <span className="text-slate-800">{new Date(quiz.deadline).toLocaleDateString('uz-UZ')}</span>
+                               </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-4 border-t border-slate-50">
+                               <button className="flex-1 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest transition-all">Natijalar</button>
+                               <button className="p-2.5 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><Trash2 size={16} /></button>
+                            </div>
+                         </motion.div>
+                       ))}
+
+                       {quizzes.length === 0 && (
+                         <div className="col-span-full py-20 text-center bg-white rounded-[2.5rem] border border-dashed border-slate-200">
+                            <HelpCircle className="w-12 h-12 text-slate-100 mx-auto mb-4" />
+                            <h3 className="text-lg font-black text-slate-600">Testlar hali yo'q</h3>
+                            <p className="text-sm text-slate-400 mt-1">Guruh uchun birinchi testni yarating!</p>
+                            <button onClick={() => setShowQuizModal(true)} className="mt-6 bg-violet-600 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-violet-200">Test yaratish</button>
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                )}
+
                 {/* ─── TAB: MENING GURUHIM ─── */}
                 {activeTab === 'guruhim' && (
                   <div className="flex-grow overflow-auto p-6">
@@ -763,6 +846,16 @@ export default function TeacherDashboard() {
                 <h2 className="text-xl font-black text-slate-500 uppercase tracking-widest">Guruh tanlanmagan</h2>
                 <p className="text-slate-400 text-sm mt-2">Ish boshlash uchun chap paneldan guruhni tanlang</p>
               </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {showQuizModal && (
+              <CreateQuizModal 
+                groupId={activeGroup?._id} 
+                onClose={() => setShowQuizModal(false)} 
+                onRefresh={() => fetchQuizzes(activeGroup._id)}
+              />
             )}
           </AnimatePresence>
         </main>

@@ -16,6 +16,8 @@ const moduleRoutes = require('./routes/moduleRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const groupStatsRoutes = require('./routes/groupStatsRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const quizRoutes = require('./routes/quizRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -33,6 +35,8 @@ app.use('/api', moduleRoutes);
 app.use('/api', notificationRoutes);
 app.use('/api', chatRoutes);
 app.use('/api', groupStatsRoutes);
+app.use('/api', adminRoutes);
+app.use('/api', quizRoutes);
 
 const PORT = process.env.PORT || 5000;
 

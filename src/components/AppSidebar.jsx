@@ -23,7 +23,7 @@ export default function AppSidebar({ isOpen, onClose }) {
     ];
   } else if (user?.role === 'student') {
     links = [
-      { name: 'Vazifalarim', path: '/student-dashboard', icon: ClipboardList },
+      { name: 'Dashboard', path: '/student-dashboard', icon: LayoutDashboard },
       { name: 'Darsliklar', path: '/student-dashboard/modules', icon: BookOpen },
       { name: "O'qituvchim", path: '/student-dashboard/chat', icon: MessageSquare },
       { name: 'Guruhim', path: '/student-dashboard/group', icon: Trophy },

@@ -11,7 +11,7 @@ export default function TeacherChat() {
   const [messages, setMessages] = useState([]);
   const [inputStr, setInputStr] = useState("");
   const endRef = useRef(null);
-  const socket = useMemo(() => io('https://lms-platform-efpp.onrender.com'), []);
+  const socket = useMemo(() => io(import.meta.env.VITE_SOCKET_URL || 'https://lms-platform-efpp.onrender.com'), []);
 
   useEffect(() => {
     getTeacherContacts(user._id).then(res => {

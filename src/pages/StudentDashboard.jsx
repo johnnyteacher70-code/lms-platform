@@ -1,18 +1,27 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getAssignments } from '../services/assignmentApi';
 import { submitAssignment, getStudentSubmissions } from '../services/submissionApi';
+import { getGroupStats } from '../services/groupApi';
+import { getAttendanceMatrix } from '../services/attendanceApi';
 import {
   CheckCircle2, Clock, AlertCircle, Send, X,
   FileText, Link as LinkIcon, MessageSquare, User,
-  BookOpen, Sparkles
+  BookOpen, Sparkles, Trophy, Calendar, Medal, ChevronRight, GraduationCap, HelpCircle
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { getGroupQuizzes, getMyQuizResults } from '../services/quizApi';
+import TakeQuizModal from '../components/Student/TakeQuizModal';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [assignments, setAssignments] = useState([]);
   const [submissions, setSubmissions] = useState([]);
+  const [groupStats, setGroupStats] = useState(null);
+  const [attendanceMatrix, setAttendanceMatrix] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTask, setActiveTask] = useState(null);
   const [solutionLink, setSolutionLink] = useState('');
@@ -20,16 +29,27 @@ export default function StudentDashboard() {
   const [attachedFile, setAttachedFile] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all'); // all, pending, done
+  const [quizzes, setQuizzes] = useState([]);
+  const [quizResults, setQuizResults] = useState([]);
+  const [activeQuiz, setActiveQuiz] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [assignsData, submsData] = await Promise.all([
+        const [assignsData, submsData, statsData, matrixData, quizzesData, resultsData] = await Promise.all([
           getAssignments(user.groupId),
-          getStudentSubmissions(user._id)
+          getStudentSubmissions(user._id),
+          user.groupId ? getGroupStats(user.groupId) : Promise.resolve({ data: null }),
+          user.groupId ? getAttendanceMatrix(user.groupId) : Promise.resolve([]),
+          user.groupId ? getGroupQuizzes(user.groupId) : Promise.resolve([]),
+          getMyQuizResults()
         ]);
         setAssignments(Array.isArray(assignsData) ? assignsData : []);
         setSubmissions(Array.isArray(submsData) ? submsData : []);
+        setGroupStats(statsData?.data || statsData);
+        setAttendanceMatrix(matrixData || []);
+        setQuizzes(quizzesData || []);
+        setQuizResults(resultsData || []);
       } catch (err) {
         console.error('Failed to fetch data', err);
         setAssignments([]); setSubmissions([]);
@@ -63,6 +83,10 @@ export default function StudentDashboard() {
 
   const getMySub = (taskId) => submissions.find(s => s.assignmentId?._id === taskId || s.assignmentId === taskId);
 
+  const myRank = groupStats?.leaderboard?.findIndex(s => s._id === user._id) + 1 || '—';
+  const myPoints = groupStats?.leaderboard?.find(s => s._id === user._id)?.totalPoints || 0;
+  const myAttendancePcnt = groupStats?.leaderboard?.find(s => s._id === user._id)?.attendancePcnt || 0;
+
   const filteredAssignments = assignments.filter(task => {
     if (activeFilter === 'all') return true;
     const mySub = getMySub(task._id);
@@ -80,157 +104,407 @@ export default function StudentDashboard() {
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-3xl p-8 mb-8 text-white overflow-hidden"
+        className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-[2rem] p-8 mb-8 text-white overflow-hidden shadow-2xl shadow-indigo-100"
       >
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(139,92,246,0.3),transparent_60%)]"></div>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(99,102,241,0.2),transparent_60%)]"></div>
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 mb-4 backdrop-blur-md">
               <Sparkles className="w-3 h-3 text-violet-300" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-violet-300">Talaba Paneli</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-300">O'quvchi Markazi</span>
             </div>
-            <h1 className="text-3xl font-black tracking-tight leading-tight">
+            <h1 className="text-4xl font-black tracking-tight leading-tight">
               Salom, <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-300 to-indigo-300">{user?.name}! 👋</span>
             </h1>
-            <p className="text-slate-400 text-sm mt-2 font-medium">Bugun ham o'rganishda davom eting.</p>
+            <p className="text-slate-400 text-base mt-2 font-medium max-w-md">Sizning bugungi natijalaringiz va o'quv jarayoningiz haqida qisqacha ma'lumot.</p>
           </div>
-          {/* Stats */}
-          <div className="flex flex-wrap gap-3 md:gap-4 shrink-0">
-            <div className="bg-white/10 border border-white/10 rounded-2xl px-4 py-2.5 md:px-5 md:py-3 text-center flex-1 min-w-[80px]">
-              <div className="text-xl md:text-2xl font-black text-emerald-400">{done}</div>
-              <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Topshirildi</div>
-            </div>
-            <div className="bg-white/10 border border-white/10 rounded-2xl px-4 py-2.5 md:px-5 md:py-3 text-center flex-1 min-w-[80px]">
-              <div className="text-xl md:text-2xl font-black text-amber-400">{pending}</div>
-              <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Kutilmoqda</div>
-            </div>
-            <div className="bg-white/10 border border-white/10 rounded-2xl px-4 py-2.5 md:px-5 md:py-3 text-center flex-1 min-w-[80px]">
-              <div className="text-xl md:text-2xl font-black text-violet-300">{assignments.length}</div>
-              <div className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Jami</div>
-            </div>
+
+          {/* Stats Bar */}
+          <div className="flex flex-wrap lg:flex-nowrap gap-4 shrink-0">
+            {[
+              { label: 'O\'rin', value: `#${myRank}`, icon: Trophy, color: 'text-amber-400' },
+              { label: 'Ballar', value: myPoints, icon: Medal, color: 'text-violet-300' },
+              { label: 'Davomat', value: `${myAttendancePcnt}%`, icon: Calendar, color: 'text-emerald-400' },
+            ].map((stat, i) => (
+              <div key={i} className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl px-6 py-4 min-w-[120px] group hover:bg-white/10 transition-colors">
+                <div className="flex items-center justify-between mb-2">
+                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                </div>
+                <div className="text-2xl font-black">{stat.value}</div>
+                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-0.5">{stat.label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </motion.div>
 
-      {/* Filter Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-lg font-black text-slate-800">Vazifalar</h2>
-        <div className="flex bg-white border border-slate-100 p-1 rounded-xl shadow-sm overflow-x-auto custom-scrollbar no-scrollbar">
-          {[
-            { id: 'all', label: 'Barchasi' },
-            { id: 'pending', label: 'Bajarilmagan' },
-            { id: 'done', label: 'Topshirilgan' },
-          ].map(f => (
-            <button
-              key={f.id}
-              onClick={() => setActiveFilter(f.id)}
-              className={`px-4 py-1.5 rounded-lg text-[10px] md:text-xs font-black transition-all whitespace-nowrap ${
-                activeFilter === f.id
-                  ? 'bg-violet-600 text-white shadow-md shadow-violet-100'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Content */}
-      {loading ? (
-        <div className="flex items-center justify-center h-40">
-          <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      ) : filteredAssignments.length === 0 ? (
-        <div className="bg-white border border-slate-100 rounded-3xl p-16 text-center shadow-sm">
-          <BookOpen className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-          <h3 className="text-lg font-black text-slate-600">Vazifalar yo'q</h3>
-          <p className="text-sm text-slate-400 mt-1">Bu bo'limda hozircha ko'rsatadigan narsa yo'q.</p>
-        </div>
-      ) : (
+      {/* Progress Chart */}
+      {submissions.some(s => s.grade !== null) && (
         <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.07 } } }}
-          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm mb-8"
         >
-          {filteredAssignments.map((task) => {
-            const overdue = isOverdue(task.deadline);
-            const mySub = getMySub(task._id);
-            return (
-              <motion.div
-                key={task._id}
-                variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}
-                className={`bg-white rounded-3xl border p-6 flex flex-col transition-all duration-200 group ${
-                  mySub ? 'border-slate-100' : 'border-slate-100 hover:border-violet-200 hover:shadow-lg hover:shadow-violet-50'
-                }`}
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-xl font-black text-slate-800">O'zlashtirish Dinamikasi</h2>
+              <p className="text-xs text-slate-400 font-medium">Oxirgi topshirilgan vazifalar bo'yicha ballaringiz</p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <Sparkles size={20} />
+            </div>
+          </div>
+          
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart 
+                data={submissions.filter(s => s.grade !== null).reverse().map(s => ({
+                  name: s.assignmentId?.title?.substring(0, 10) + '...',
+                  ball: s.grade
+                }))}
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
               >
-                {/* Card Header */}
-                <div className="flex items-start justify-between gap-2 mb-4">
-                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">
-                    <User className="w-3 h-3 text-slate-400" strokeWidth={2.5} />
-                    <span className="text-[10px] font-black text-slate-500">{task.teacherId?.name || "O'qituvchi"}</span>
-                  </div>
-                  {mySub ? (
-                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${
-                      mySub.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                      mySub.status === 'rejected' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                      'bg-amber-50 text-amber-600 border-amber-100'
-                    }`}>
-                      {mySub.status === 'approved' ? '✓ Qabul qilindi' : mySub.status === 'rejected' ? '✗ Rad etildi' : '⏳ Kutilmoqda'}
-                    </span>
-                  ) : (
-                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${overdue ? 'bg-rose-50 text-rose-500 border-rose-100' : 'bg-blue-50 text-blue-500 border-blue-100'}`}>
-                      {overdue ? 'Yopilgan' : 'Bajarish kerak'}
-                    </span>
-                  )}
-                </div>
-
-                <h3 className="text-base font-black text-slate-800 mb-2 leading-tight group-hover:text-violet-700 transition-colors">{task.title}</h3>
-                <p className="text-xs text-slate-500 flex-grow mb-4 line-clamp-3 leading-relaxed">{task.description}</p>
-
-                {/* Grade/Feedback */}
-                {mySub && (mySub.grade !== null || mySub.feedback) && (
-                  <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 mb-4">
-                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Baholash</p>
-                    {mySub.grade !== null && <div className="text-xl font-black text-slate-800">{mySub.grade} <span className="text-slate-300 text-sm font-bold">/ 100</span></div>}
-                    {mySub.feedback && <p className="text-xs text-emerald-700 italic mt-1">"{mySub.feedback}"</p>}
-                  </div>
-                )}
-
-                {/* Footer */}
-                <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-0.5">Muddat</span>
-                    <span className={`text-xs font-bold ${overdue && !mySub ? 'text-rose-500' : 'text-slate-600'}`}>
-                      {new Date(task.deadline).toLocaleDateString('uz-UZ')}
-                    </span>
-                  </div>
-                  {mySub ? (
-                    <div className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase">
-                      <CheckCircle2 className="w-4 h-4" />
-                      Topshirilgan
-                    </div>
-                  ) : (
-                    <motion.button
-                      whileHover={{ scale: 1.04 }}
-                      whileTap={{ scale: 0.96 }}
-                      onClick={() => handleOpenModal(task)}
-                      disabled={overdue}
-                      className={`px-5 py-2 rounded-xl font-black text-[11px] uppercase tracking-wider transition-all ${
-                        overdue ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-violet-600 text-white shadow-lg shadow-violet-200 hover:bg-violet-700'
-                      }`}
-                    >
-                      {overdue ? 'Yopilgan' : 'Topshirish'}
-                    </motion.button>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
+                <defs>
+                  <linearGradient id="colorBall" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    borderRadius: '16px', 
+                    border: 'none', 
+                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="ball" 
+                  stroke="#6366f1" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorBall)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </motion.div>
       )}
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        
+        {/* LEFT COLUMN: ASSIGNMENTS (2/3) */}
+        <div className="xl:col-span-2 space-y-8">
+          
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              { label: 'Topshirildi', value: done, icon: CheckCircle2, color: 'bg-emerald-50 text-emerald-600' },
+              { label: 'Kutilmoqda', value: pending, icon: Clock, color: 'bg-amber-50 text-amber-600' },
+              { label: 'Barchasi', value: assignments.length, icon: BookOpen, color: 'bg-violet-50 text-violet-600' },
+              { label: 'Guruh', value: user.groupName || 'Active', icon: GraduationCap, color: 'bg-indigo-50 text-indigo-600' },
+            ].map((stat, i) => (
+              <div key={i} className={`p-4 rounded-2xl ${stat.color} flex flex-col justify-between h-24`}>
+                <stat.icon className="w-5 h-5 opacity-60" />
+                <div>
+                  <div className="text-xl font-black">{stat.value}</div>
+                  <div className="text-[9px] font-black uppercase tracking-widest opacity-70">{stat.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Assignments Header */}
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                <span className="w-1.5 h-6 bg-violet-600 rounded-full"></span>
+                Vazifalar
+              </h2>
+              <div className="flex bg-white border border-slate-100 p-1 rounded-xl shadow-sm">
+                {['all', 'pending', 'done'].map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFilter(f)}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      activeFilter === f ? 'bg-violet-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {f === 'all' ? 'Barchasi' : f === 'pending' ? 'Kutilmoqda' : 'Bajarilgan'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {[1, 2].map(i => <div key={i} className="h-48 bg-slate-100 animate-pulse rounded-3xl" />)}
+              </div>
+            ) : filteredAssignments.length === 0 ? (
+              <div className="bg-white border border-dashed border-slate-200 rounded-3xl p-16 text-center">
+                <BookOpen className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                <h3 className="text-lg font-black text-slate-600">Vazifalar topilmadi</h3>
+                <p className="text-sm text-slate-400 mt-1">Siz barcha vazifalarni topshirib bo'lgansiz!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {filteredAssignments.map((task) => {
+                  const overdue = isOverdue(task.deadline);
+                  const mySub = getMySub(task._id);
+                  return (
+                    <motion.div
+                      key={task._id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className={`bg-white rounded-3xl border p-6 flex flex-col transition-all duration-300 group hover:shadow-xl hover:shadow-slate-200/50 ${
+                        mySub ? 'border-slate-100' : 'border-slate-100 hover:border-violet-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-4">
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">
+                          <User className="w-3 h-3 text-slate-400" />
+                          <span className="text-[10px] font-black text-slate-500">{task.teacherId?.name || "O'qituvchi"}</span>
+                        </div>
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${
+                          mySub?.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                          mySub?.status === 'rejected' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                          mySub ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                          overdue ? 'bg-rose-50 text-rose-500 border-rose-100' : 'bg-blue-50 text-blue-500 border-blue-100'
+                        }`}>
+                          {mySub?.status === 'approved' ? '✓ Qabul qilindi' : mySub?.status === 'rejected' ? '✗ Rad etildi' : mySub ? '⏳ Kutilmoqda' : overdue ? 'Yopilgan' : 'Aktiv'}
+                        </span>
+                      </div>
+
+                      <h3 className="text-base font-black text-slate-800 mb-2 leading-tight group-hover:text-violet-700 transition-colors">{task.title}</h3>
+                      <p className="text-xs text-slate-400 flex-grow mb-4 line-clamp-2 leading-relaxed">{task.description}</p>
+
+                      {mySub && (mySub.grade !== null || mySub.feedback) && (
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-4">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Natija</span>
+                            {mySub.grade !== null && <span className="text-sm font-black text-emerald-600">{mySub.grade} ball</span>}
+                          </div>
+                          {mySub.feedback && <p className="text-[11px] text-slate-500 italic">"{mySub.feedback}"</p>}
+                        </div>
+                      )}
+
+                      <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest block mb-0.5">Muddat</span>
+                          <span className={`text-xs font-bold ${overdue && !mySub ? 'text-rose-500' : 'text-slate-600'}`}>
+                            {new Date(task.deadline).toLocaleDateString('uz-UZ')}
+                          </span>
+                        </div>
+                        {mySub ? (
+                          <div className="flex items-center gap-1.5 text-emerald-600 font-black text-[10px] uppercase tracking-wider">
+                            <CheckCircle2 className="w-4 h-4" /> Bajarildi
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenModal(task)}
+                            disabled={overdue}
+                            className={`px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                              overdue ? 'bg-slate-100 text-slate-400' : 'bg-violet-600 text-white shadow-lg shadow-violet-100 hover:bg-violet-700 active:scale-95'
+                            }`}
+                          >
+                            {overdue ? 'Yopilgan' : 'Topshirish'}
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Quizzes Section */}
+          <div>
+             <div className="flex items-center justify-between mb-6 mt-12">
+                <h2 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                  <span className="w-1.5 h-6 bg-indigo-600 rounded-full"></span>
+                  Testlar
+                </h2>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {quizzes.map((quiz) => {
+                  const result = quizResults.find(r => r.quizId?._id === quiz._id || r.quizId === quiz._id);
+                  const isClosed = new Date(quiz.deadline) < new Date();
+                  
+                  return (
+                    <motion.div 
+                      key={quiz._id}
+                      className="bg-white rounded-3xl border border-slate-100 p-6 flex flex-col hover:shadow-xl hover:shadow-slate-200/50 transition-all group"
+                    >
+                       <div className="flex items-start justify-between mb-4">
+                          <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                             <HelpCircle size={20} />
+                          </div>
+                          <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg ${
+                            result ? 'bg-emerald-50 text-emerald-600' : isClosed ? 'bg-rose-50 text-rose-500' : 'bg-indigo-50 text-indigo-600'
+                          }`}>
+                            {result ? '✓ Yakunlangan' : isClosed ? 'Yopilgan' : '⏳ Kutilmoqda'}
+                          </span>
+                       </div>
+                       
+                       <h3 className="text-base font-black text-slate-800 mb-1 leading-tight">{quiz.title}</h3>
+                       <p className="text-[10px] font-bold text-slate-400 mb-4">{quiz.questions?.length} ta savol · {quiz.duration} minut</p>
+                       
+                       {result ? (
+                         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-4">
+                            <div className="flex justify-between items-center">
+                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Natija</span>
+                               <span className="text-sm font-black text-indigo-600">{result.score} / {result.totalPoints} ball</span>
+                            </div>
+                         </div>
+                       ) : (
+                         <p className="text-xs text-slate-400 mb-4 line-clamp-2 leading-relaxed">{quiz.description}</p>
+                       )}
+
+                       <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
+                          <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                             Muddat: {new Date(quiz.deadline).toLocaleDateString('uz-UZ')}
+                          </div>
+                          {!result && !isClosed && (
+                            <button 
+                              onClick={() => setActiveQuiz(quiz)}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 transition-all"
+                            >
+                               Boshlash
+                            </button>
+                          )}
+                       </div>
+                    </motion.div>
+                  );
+                })}
+                {quizzes.length === 0 && (
+                   <div className="col-span-full py-12 text-center bg-white rounded-3xl border border-dashed border-slate-200">
+                      <HelpCircle className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                      <p className="text-sm font-bold text-slate-400">Hozircha testlar yo'q</p>
+                   </div>
+                )}
+             </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: ATTENDANCE & LEADERBOARD (1/3) */}
+        <div className="space-y-8">
+          
+          {/* Attendance Calendar Card */}
+          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">Davomat</h3>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-7 gap-2 mb-4">
+                {['D', 'S', 'C', 'P', 'J', 'S', 'Y'].map(d => (
+                  <div key={d} className="text-[10px] font-black text-slate-300 text-center">{d}</div>
+                ))}
+                {/* Visual Placeholder for a small calendar/grid */}
+                {Array.from({ length: 28 }).map((_, i) => {
+                  const date = new Date();
+                  date.setDate(date.getDate() - (27 - i));
+                  const dateStr = date.toISOString().split('T')[0];
+                  const record = attendanceMatrix.find(d => d.date === dateStr)?.records?.find(r => r.studentId === user._id);
+                  const isPresent = record?.status === 'present';
+                  const isAbsent = record?.status === 'absent';
+                  
+                  return (
+                    <div 
+                      key={i} 
+                      title={dateStr}
+                      className={`aspect-square rounded-md border transition-all ${
+                        isPresent ? 'bg-emerald-500 border-emerald-500 shadow-md shadow-emerald-100' : 
+                        isAbsent ? 'bg-rose-500 border-rose-500' : 
+                        'bg-slate-50 border-slate-100'
+                      }`}
+                    ></div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-center gap-4 text-[10px] font-black uppercase tracking-widest">
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> <span className="text-slate-400">Kelgan</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-500"></div> <span className="text-slate-400">Kelmagan</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-slate-100"></div> <span className="text-slate-400">Bo'sh</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Leaderboard Card */}
+          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+             <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                  <Trophy size={16} className="text-amber-500" /> Guruh Reytingi
+                </h3>
+                <span className="text-[10px] font-black text-slate-400 uppercase">Top 5</span>
+             </div>
+             <div className="p-4 space-y-2">
+                {groupStats?.leaderboard?.slice(0, 5).map((student, i) => {
+                  const isMe = student._id === user._id;
+                  return (
+                    <div key={student._id} className={`flex items-center gap-3 p-3 rounded-2xl transition-all ${isMe ? 'bg-violet-600 text-white shadow-lg shadow-violet-200' : 'hover:bg-slate-50'}`}>
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-sm ${isMe ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>
+                        {i + 1}
+                      </div>
+                      <div className="flex-grow min-w-0">
+                        <div className={`text-xs font-black truncate ${isMe ? 'text-white' : 'text-slate-700'}`}>{student.name}</div>
+                        <div className={`text-[10px] font-bold ${isMe ? 'text-violet-200' : 'text-slate-400'}`}>{student.totalPoints} ball</div>
+                      </div>
+                      {isMe && <Sparkles size={14} className="text-amber-300" />}
+                    </div>
+                  );
+                })}
+                
+                {/* If me not in top 5 */}
+                {myRank > 5 && (
+                  <>
+                    <div className="flex justify-center py-1">
+                      <div className="flex flex-col gap-1 items-center">
+                        <div className="w-1 h-1 bg-slate-200 rounded-full"></div>
+                        <div className="w-1 h-1 bg-slate-200 rounded-full"></div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-200">
+                      <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center font-black text-sm">
+                        {myRank}
+                      </div>
+                      <div className="flex-grow min-w-0">
+                        <div className="text-xs font-black truncate">{user.name}</div>
+                        <div className="text-[10px] font-bold text-violet-200">{myPoints} ball</div>
+                      </div>
+                      <Sparkles size={14} className="text-amber-300" />
+                    </div>
+                  </>
+                )}
+             </div>
+             <div className="p-4 pt-0">
+               <button onClick={() => navigate('/student-dashboard/group')} className="w-full py-3 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                 To'liq ro'yxat <ChevronRight size={14} />
+               </button>
+             </div>
+          </div>
+
+        </div>
+      </div>
 
       {/* Submit Modal */}
       <AnimatePresence>
@@ -274,6 +548,20 @@ export default function StudentDashboard() {
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Take Quiz Modal */}
+      <AnimatePresence>
+        {activeQuiz && (
+          <TakeQuizModal 
+            quiz={activeQuiz} 
+            onClose={() => setActiveQuiz(null)}
+            onRefresh={() => {
+              // Refresh results
+              getMyQuizResults().then(setQuizResults);
+            }}
+          />
         )}
       </AnimatePresence>
     </div>

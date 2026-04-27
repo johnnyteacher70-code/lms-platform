@@ -8,6 +8,8 @@ import {
   Eye, ChevronRight, UserCheck, UserX, Calendar, Mail, Phone, ArrowRightLeft, Settings
 } from 'lucide-react';
 import { removeStudentFromGroup, moveStudentToGroup, updateGroup } from '../services/groupApi';
+import { getAdminStats } from '../services/adminApi';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import toast from 'react-hot-toast';
 
 const STAT_CARDS = [
@@ -231,8 +233,24 @@ export default function AdminDashboard() {
   const [groupEditLoading, setGroupEditLoading] = useState(false);
 
   const [viewGroupId, setViewGroupId] = useState(null); // students modal
+  const [assigningStudentId, setAssigningStudentId] = useState(null);
+  const [targetGroupIdForNew, setTargetGroupIdForNew] = useState('');
+  const [adminStats, setAdminStats] = useState(null);
 
-  useEffect(() => { fetchUsers(); fetchGroupsData(); }, []);
+  useEffect(() => { 
+    fetchUsers(); 
+    fetchGroupsData(); 
+    fetchAdminDashboardData();
+  }, []);
+
+  const fetchAdminDashboardData = async () => {
+    try {
+      const data = await getAdminStats();
+      setAdminStats(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -310,7 +328,22 @@ export default function AdminDashboard() {
     finally { setGroupEditLoading(false); }
   };
 
+  const handleAssignGroup = async (e) => {
+    e.preventDefault();
+    if (!targetGroupIdForNew) return;
+    try {
+      await moveStudentToGroup(assigningStudentId, targetGroupIdForNew);
+      toast.success("O'quvchi guruhga qo'shildi");
+      setAssigningStudentId(null);
+      setTargetGroupIdForNew('');
+      fetchUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Xatolik yuz berdi");
+    }
+  };
+
   const teachersList = usersInfo.filter(u => u.role === 'teacher');
+  const newStudents = usersInfo.filter(u => u.role === 'student' && !u.groupId);
 
   return (
     <div className="w-full pb-10">
@@ -345,6 +378,88 @@ export default function AdminDashboard() {
             </motion.div>
           );
         })}
+      </div>
+
+      {/* Analytics Chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-lg font-black text-slate-800">Guruhlar tahlili</h2>
+              <p className="text-xs text-slate-400 font-medium">Har bir guruhdagi o'quvchilar soni</p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-violet-50 flex items-center justify-center text-violet-600">
+              <FolderOpen size={20} />
+            </div>
+          </div>
+          
+          <div className="h-[300px] w-full">
+            {adminStats?.groupData ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={adminStats.groupData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ 
+                      borderRadius: '16px', 
+                      border: 'none', 
+                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}
+                  />
+                  <Bar dataKey="students" radius={[6, 6, 0, 0]} barSize={40}>
+                    {adminStats.groupData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#6366f1' : '#8b5cf6'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-300 italic text-sm">
+                Ma'lumotlar yuklanmoqda...
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-slate-900 to-indigo-900 rounded-3xl p-8 text-white relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+          <div className="relative z-10">
+            <h3 className="text-xl font-black mb-2">Tizim holati</h3>
+            <p className="text-slate-400 text-sm font-medium">Barcha ko'rsatkichlar joyida. Platforma 100% aktiv.</p>
+          </div>
+          
+          <div className="space-y-6 relative z-10">
+            <div>
+              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                <span>O'quvchilar sig'imi</span>
+                <span>{stats.students}/1000</span>
+              </div>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-violet-400 to-indigo-400" 
+                  style={{ width: `${(stats.students / 1000) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+            <button className="w-full bg-white/10 hover:bg-white/20 border border-white/10 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all">
+              Batafsil Hisobot
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Group Management */}
@@ -449,6 +564,76 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+      </div>
+      
+      {/* New Students (Unassigned) */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm mb-8">
+        <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-5 flex items-center gap-2">
+          <span className="w-1 h-4 bg-orange-500 rounded-full inline-block" />
+          Yangi O'quvchilar ({newStudents.length})
+        </h2>
+        
+        {newStudents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+            <UserCheck className="w-8 h-8 text-slate-200 mb-2" />
+            <p className="text-sm font-medium">Barcha o'quvchilar guruhlarga biriktirilgan</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {newStudents.map(s => (
+              <motion.div
+                key={s._id}
+                layout
+                className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <Avatar name={s.name} className="w-10 h-10 text-sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-700 truncate">{s.name}</p>
+                    <p className="text-[10px] text-slate-400 font-medium truncate">{s.email}</p>
+                  </div>
+                </div>
+                
+                {assigningStudentId === s._id ? (
+                  <form onSubmit={handleAssignGroup} className="flex gap-2">
+                    <select
+                      required
+                      value={targetGroupIdForNew}
+                      onChange={e => setTargetGroupIdForNew(e.target.value)}
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-orange-400"
+                    >
+                      <option value="">Guruhni tanlang...</option>
+                      {groups.map(g => (
+                        <option key={g._id} value={g._id}>{g.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      className="bg-orange-500 text-white p-2 rounded-xl hover:bg-orange-600 transition-colors shadow-md"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssigningStudentId(null)}
+                      className="bg-white text-slate-400 p-2 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={() => setAssigningStudentId(s._id)}
+                    className="w-full bg-white border border-slate-200 text-slate-600 py-2 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-orange-500" />
+                    Guruhga qo'shish
+                  </button>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Users Table */}

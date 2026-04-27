@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useNavigate, Link } from 'react-router-dom'
 import { registerUser } from '../services/authApi'
-import { getGroups } from '../services/groupApi'
 import { motion, AnimatePresence } from 'framer-motion'
 import { User, Mail, Lock, UserPlus, ArrowRight, BookOpen } from 'lucide-react'
 
@@ -14,32 +13,16 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('student'); 
-  const [groupId, setGroupId] = useState('');
   
-  const [groups, setGroups] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-     const fetchGroupsData = async () => {
-        try {
-          const data = await getGroups();
-          setGroups(data);
-        } catch(err) {
-          console.error("Guruhlarni tortishda muammo", err);
-        }
-     };
-     fetchGroupsData();
-  }, []);
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Agar o'quvchi guruh tanlamagan bo'lsa xato beramiz
-    if (role === 'student' && !groupId) {
-       setError("Iltimos, guruhni tanlang!");
-       return;
-    }
+
 
     setError(null);
     setLoading(true);
@@ -49,8 +32,7 @@ export default function Register() {
         name, 
         email, 
         password, 
-        role, 
-        groupId: role === 'student' ? groupId : null 
+        role 
       });
       
       if(data.user && data.token) {
@@ -99,7 +81,6 @@ export default function Register() {
                 value={role} 
                 onChange={(e) => {
                   setRole(e.target.value);
-                  if(e.target.value !== 'student') setGroupId('');
                 }}
               >
                  <option value="student">Talaba (Student)</option>
@@ -144,37 +125,7 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Faqat Student uchun Guruh tanlash qismi */}
-            <AnimatePresence>
-              {role === 'student' && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-1"
-                >
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Guruhni tanlang</label>
-                  <div className="relative group">
-                    <BookOpen className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={18} />
-                    {groups.length === 0 ? (
-                      <p className="w-full bg-red-50 text-red-500 p-4 rounded-2xl text-[10px] font-black uppercase">Guruhlar mavjud emas</p>
-                    ) : (
-                      <select 
-                        required
-                        className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 outline-none focus:bg-white focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all font-bold text-slate-800 appearance-none"
-                        value={groupId} 
-                        onChange={(e) => setGroupId(e.target.value)}
-                      >
-                         <option value="" disabled>-- Tanlang --</option>
-                         {groups.map(g => (
-                            <option key={g._id} value={g._id}>{g.name}</option>
-                         ))}
-                      </select>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+
 
             {error && (
               <motion.div 

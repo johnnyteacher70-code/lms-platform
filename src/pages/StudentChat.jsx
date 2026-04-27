@@ -14,7 +14,7 @@ export default function StudentChat() {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    socketRef.current = io('https://lms-platform-efpp.onrender.com');
+    socketRef.current = io(import.meta.env.VITE_SOCKET_URL || 'https://lms-platform-efpp.onrender.com');
     setConnected(true);
     
     getStudentTeacher(user._id).then(res => {
